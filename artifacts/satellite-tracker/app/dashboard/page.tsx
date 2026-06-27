@@ -84,7 +84,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* Stats + setup checklist */}
-      <div className="grid grid-cols-4 gap-4 mb-8 items-start">
+      <div className="grid grid-cols-4 gap-4 mb-8 items-stretch">
         {/* Setup checklist */}
         <div className="rounded-xl bg-slate-900/60 border border-slate-800 p-5">
           <h2 className="font-semibold text-white mb-4">Setup checklist</h2>
