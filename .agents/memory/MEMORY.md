@@ -1,0 +1,2 @@
+- [API path routing conflict](api-path-routing.md) — the api-server artifact owning /api collides with a Next.js app's own /api/* routes; repath api-server off /api.
+- [Supabase auth in proxied preview](supabase-auth-proxy.md) — do auth via server-side route handlers (Set-Cookie), not the browser client, so cookies persist through the Replit proxy/iframe.
