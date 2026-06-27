@@ -68,7 +68,7 @@ Tables: `locations`, `tracked_satellites`, `groups`, `group_members`, `alert_sub
 - **Locations** — add and manage observing sites by address search or GPS; one can be marked default
 - **Satellites** — track satellites by NORAD ID with quick-add for popular ones (ISS, ISS Ham, NOAA series, Hubble, weather sats)
 - **Passes** — get pass predictions for any tracked satellite from any saved location; filter by horizon elevation and look-ahead days; live Leaflet map shows real-time satellite position
-- **Groups** — create groups with auto-generated invite codes; coordinate passes with other operators
+- **Groups** — create groups (each with one observing location); discover and join any group directly from a Leaflet map (groups shown as dots with a 100 km coverage ring) or the list below it; leave anytime. (Future: request-to-join with admin approval.) Invite codes are still generated but no longer required to join.
 - **Alerts** — subscribe to email alerts for any satellite/location combo; alerts fire within a configurable window before the pass starts
 
 ## User preferences

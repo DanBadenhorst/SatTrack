@@ -1,9 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import { createClient } from "@/lib/supabase/client";
-import { Users, Copy, Check, LogOut, Crown, MapPin, Search, Globe, Pencil } from "lucide-react";
+import { Users, Copy, Check, LogOut, Crown, MapPin, Search, Globe, Pencil, UserPlus } from "lucide-react";
 import { useRouter } from "next/navigation";
+import type { MapGroup } from "@/components/GroupsJoinMap";
+
+const GroupsJoinMap = dynamic(() => import("@/components/GroupsJoinMap"), { ssr: false });
 
 interface GroupRow {
   id: string;
@@ -29,6 +33,7 @@ interface GroupMembership {
 
 interface Props {
   memberships: GroupMembership[];
+  allGroups: MapGroup[];
   userId: string;
   userEmail: string;
 }
@@ -167,12 +172,12 @@ function LocationPicker({
   );
 }
 
-export default function GroupsClient({ memberships: initial, userId }: Props) {
+export default function GroupsClient({ memberships: initial, allGroups, userId }: Props) {
   const [memberships, setMemberships] = useState(initial);
   const [tab, setTab] = useState<"my" | "create" | "join">("my");
   const [createForm, setCreateForm] = useState({ name: "", description: "" });
   const [createLocation, setCreateLocation] = useState<LocationDraft>(emptyLocation);
-  const [joinCode, setJoinCode] = useState("");
+  const [busyId, setBusyId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
@@ -223,34 +228,54 @@ export default function GroupsClient({ memberships: initial, userId }: Props) {
     setSaving(false);
   }
 
-  async function handleJoin(e: React.FormEvent) {
-    e.preventDefault();
-    setSaving(true);
+  async function joinGroup(group: MapGroup) {
+    if (memberships.some(m => m.group_id === group.id)) return;
+    setBusyId(group.id);
     setError(null);
 
-    const { data: group, error: err } = await supabase
-      .from("groups")
-      .select("*")
-      .eq("invite_code", joinCode.trim().toUpperCase())
-      .single();
-
-    if (err || !group) { setError("Invalid invite code."); setSaving(false); return; }
-
-    const already = memberships.find(m => m.group_id === group.id);
-    if (already) { setError("You're already a member of this group."); setSaving(false); return; }
-
-    const { data: member } = await supabase
+    const { data: member, error: err } = await supabase
       .from("group_members")
       .insert({ group_id: group.id, user_id: userId, role: "member" })
       .select()
       .single();
 
+    if (err) { setError(err.message); setBusyId(null); return; }
+
     if (member) {
-      setMemberships([...memberships, { ...member, groups: group }]);
-      setJoinCode("");
-      setTab("my");
+      // Fetch the full group row so My Groups can render it consistently. If
+      // that fetch fails, fall back to the discovery data we already have so
+      // the UI never ends up in a stale state after a successful join.
+      const { data: full } = await supabase.from("groups").select("*").eq("id", group.id).single();
+      const groupRow: GroupRow = full ?? {
+        id: group.id,
+        name: group.name,
+        description: group.description,
+        invite_code: "",
+        created_by: "",
+        created_at: new Date().toISOString(),
+        location_name: group.location_name,
+        latitude: group.latitude,
+        longitude: group.longitude,
+        altitude: group.altitude,
+      };
+      setMemberships([...memberships, { ...member, groups: groupRow }]);
+      router.refresh();
     }
-    setSaving(false);
+    setBusyId(null);
+  }
+
+  async function leaveGroupById(groupId: string) {
+    setBusyId(groupId);
+    setError(null);
+    const { error: err } = await supabase
+      .from("group_members")
+      .delete()
+      .eq("group_id", groupId)
+      .eq("user_id", userId);
+    if (err) { setError(err.message); setBusyId(null); return; }
+    setMemberships(memberships.filter(m => m.group_id !== groupId));
+    setBusyId(null);
+    router.refresh();
   }
 
   async function leaveGroup(membershipId: string) {
@@ -330,7 +355,7 @@ export default function GroupsClient({ memberships: initial, userId }: Props) {
                   Create a group
                 </button>
                 <button onClick={() => setTab("join")} className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm transition-colors">
-                  Join with code
+                  Join a group
                 </button>
               </div>
             </div>
@@ -466,31 +491,78 @@ export default function GroupsClient({ memberships: initial, userId }: Props) {
       )}
 
       {tab === "join" && (
-        <div className="p-5 rounded-xl bg-slate-900 border border-slate-800">
-          <h2 className="font-semibold text-white mb-4">Join with invite code</h2>
-          <form onSubmit={handleJoin} className="space-y-4">
-            {error && <div className="p-3 rounded-lg bg-red-900/30 border border-red-800 text-red-300 text-sm">{error}</div>}
-            <div>
-              <label className="block text-xs text-slate-400 uppercase mb-1.5">Invite code</label>
-              <input
-                value={joinCode}
-                onChange={e => setJoinCode(e.target.value.toUpperCase())}
-                required maxLength={6}
-                placeholder="e.g. ABC123"
-                className="w-full bg-slate-800 border border-slate-700 text-white rounded-lg px-3 py-2.5 text-sm font-mono tracking-widest uppercase focus:outline-none focus:border-space-500"
-              />
-            </div>
-            <div className="flex gap-2">
-              <button type="submit" disabled={saving}
-                className="px-4 py-2 rounded-lg bg-space-600 hover:bg-space-700 text-white text-sm font-medium disabled:opacity-60 transition-colors">
-                {saving ? "Joining…" : "Join group"}
-              </button>
-              <button type="button" onClick={() => { setTab("my"); setError(null); }}
-                className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm transition-colors">
-                Cancel
-              </button>
-            </div>
-          </form>
+        <div className="space-y-4">
+          {error && <div className="p-3 rounded-lg bg-red-900/30 border border-red-800 text-red-300 text-sm">{error}</div>}
+
+          <p className="text-sm text-slate-400">
+            Tap a group on the map — the ring shows its ~100&nbsp;km coverage area, where pass details are effectively the same — then join to track satellites together.
+          </p>
+
+          {/* Map */}
+          <div className="h-96 rounded-xl overflow-hidden border border-slate-800">
+            <GroupsJoinMap
+              groups={allGroups}
+              isMember={(id) => memberships.some(m => m.group_id === id)}
+              busyId={busyId}
+              onJoin={joinGroup}
+              onLeave={leaveGroupById}
+            />
+          </div>
+
+          {/* Legend */}
+          <div className="flex items-center gap-4 text-xs text-slate-500">
+            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-blue-400" /> Available to join</span>
+            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-400" /> You&apos;re a member</span>
+          </div>
+
+          {/* List */}
+          <div className="space-y-3">
+            <h3 className="text-sm font-semibold text-slate-300">All groups</h3>
+            {allGroups.length === 0 ? (
+              <div className="text-center py-10 text-slate-500 text-sm">No groups exist yet. Create the first one.</div>
+            ) : (
+              allGroups.map(g => {
+                const member = memberships.some(m => m.group_id === g.id);
+                return (
+                  <div key={g.id} className="flex items-center justify-between gap-3 p-4 rounded-xl bg-slate-900 border border-slate-800">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-semibold text-white truncate">{g.name}</h4>
+                        {member && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-900/30 border border-emerald-800 text-emerald-400">Member</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5 text-xs text-slate-500 mt-0.5">
+                        <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
+                        <span className="truncate">
+                          {g.location_name ?? (g.latitude != null ? `${g.latitude.toFixed(2)}°, ${g.longitude!.toFixed(2)}°` : "No location set")}
+                        </span>
+                        <span className="text-slate-600">·</span>
+                        <span>{g.member_count} member{g.member_count === 1 ? "" : "s"}</span>
+                      </div>
+                    </div>
+                    {member ? (
+                      <button
+                        onClick={() => leaveGroupById(g.id)}
+                        disabled={busyId === g.id}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-red-400 hover:bg-slate-800 disabled:opacity-60 transition-colors flex-shrink-0"
+                      >
+                        <LogOut className="w-3.5 h-3.5" /> {busyId === g.id ? "Leaving…" : "Leave"}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => joinGroup(g)}
+                        disabled={busyId === g.id}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-space-600 hover:bg-space-700 text-white font-medium disabled:opacity-60 transition-colors flex-shrink-0"
+                      >
+                        <UserPlus className="w-3.5 h-3.5" /> {busyId === g.id ? "Joining…" : "Join"}
+                      </button>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
         </div>
       )}
     </div>

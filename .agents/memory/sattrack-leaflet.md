@@ -6,3 +6,5 @@ The Live Map (PassMap) requires `react-leaflet` v5+. This app runs Next 15 with 
 
 **Why:** react-leaflet v4 only supports React 18. On React 19 it throws "Invalid hook call / more than one copy of React", which leaves the Leaflet container half-initialized and then crashes with "Map container is already initialized." Symptom: the Live Map modal opens blank, then the app crashes.
 **How to apply:** Keep `react-leaflet` at `^5.0.0` (pulls `@react-leaflet/core` v3). Never downgrade to v4 while React is 19. PassMap also gives `MapContainer` a `key` so it remounts cleanly when reopening/switching satellites.
+
+**Pitfall — children of MapContainer:** when mapping over data to render layers, wrap each item in a keyed `<Fragment>`, never a `<div>`. A plain DOM element as a direct/indirect MapContainer child breaks react-leaflet (it expects Leaflet layer elements).
