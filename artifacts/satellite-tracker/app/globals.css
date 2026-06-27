@@ -1,0 +1,27 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 10 10 30;
+    --foreground: 220 220 255;
+  }
+
+  body {
+    @apply bg-[rgb(8,8,24)] text-slate-100 antialiased;
+  }
+}
+
+.leaflet-container {
+  background: #0a0a1a !important;
+}
+
+.satellite-dot {
+  animation: pulse 2s infinite;
+}
+
+@keyframes orbit {
+  from { transform: rotate(0deg) translateX(80px) rotate(0deg); }
+  to   { transform: rotate(360deg) translateX(80px) rotate(-360deg); }
+}
