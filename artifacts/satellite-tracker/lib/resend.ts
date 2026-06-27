@@ -88,7 +88,7 @@ export async function sendPassAlert(payload: AlertPayload) {
 
   return resend.emails.send({
     from: FROM_EMAIL,
-    to: [{ name: payload.toName, email: payload.toEmail }],
+    to: [payload.toEmail],
     subject,
     html,
   });
