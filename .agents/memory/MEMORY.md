@@ -2,3 +2,4 @@
 - [SatTrack .next is gitignored](sattrack-next-cache.md) — the satellite-tracker .next dir is untracked; if a deleted route still fails typecheck via phantom .next/types, rm -rf .next and restart.
 - [SatTrack Leaflet / React 19](sattrack-leaflet.md) — react-leaflet must be v5+ on Next 15 / React 19; v4 throws "invalid hook call" + "Map container already initialized" and crashes the live map.
 - [Supabase service-role client inherits caller session](supabase-service-client.md) — cookie-wired service-role client runs as the user under RLS in authed requests; use a cookieless one for cross-user fan-out.
+- [satellite.js v7 breaks webpack](sattrack-satellitejs.md) — satellite.js v7 ships WASM importing `node:module`, crashes Next/webpack client build; pin v5 (pure JS, bundles its own types).

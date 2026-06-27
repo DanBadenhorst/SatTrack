@@ -20,6 +20,8 @@
     "react-dom": "^19.1.0",
     "react-leaflet": "^5.0.0",
     "resend": "^4.5.2",
+    "satellite.js": "^5.0.0",
+    "three": "^0.185.0",
     "zod": "^3.25.51"
   },
   "devDependencies": {
@@ -27,6 +29,7 @@
     "@types/node": "^22.15.30",
     "@types/react": "^19.1.5",
     "@types/react-dom": "^19.1.5",
+    "@types/three": "^0.185.0",
     "autoprefixer": "^10.4.21",
     "postcss": "^8.5.4",
     "tailwindcss": "^3.4.17",

@@ -1,9 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { createClient } from "@/lib/supabase/client";
 import { MessageSquare, Send, Bell, BellOff } from "lucide-react";
 import type { GroupMessage } from "@/lib/types";
+import type { GlobeSatellite } from "@/components/GroupGlobe";
+
+// Leaflet-style dynamic import: WebGL needs the DOM, so render client-only.
+const GroupGlobe = dynamic(() => import("@/components/GroupGlobe"), {
+  ssr: false,
+  loading: () => <div style={{ width: 84, height: 84 }} aria-hidden="true" />,
+});
 
 interface GroupOption {
   id: string;
@@ -37,6 +45,7 @@ export default function GroupFeed({ groups, userId, userEmail }: Props) {
   const [notify, setNotify] = useState(false);
   const [notifyBusy, setNotifyBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [globeSats, setGlobeSats] = useState<GlobeSatellite[]>([]);
   const listRef = useRef<HTMLDivElement>(null);
 
   const loadMessages = useCallback(
@@ -77,6 +86,30 @@ export default function GroupFeed({ groups, userId, userEmail }: Props) {
     const interval = setInterval(() => loadMessages(selectedId), 15000);
     return () => clearInterval(interval);
   }, [selectedId, loadMessages, loadNotify]);
+
+  // Fetch the selected group's tracked-satellite TLEs for the globe. TLEs come
+  // from the hourly-cached server helper, so positions are propagated locally
+  // each frame with zero per-frame live-position API calls.
+  useEffect(() => {
+    if (!selectedId) {
+      setGlobeSats([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/satellite-tle?group_id=${selectedId}`);
+        if (!res.ok) throw new Error("Failed");
+        const data = await res.json();
+        if (!cancelled) setGlobeSats((data.satellites as GlobeSatellite[]) ?? []);
+      } catch {
+        if (!cancelled) setGlobeSats([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedId]);
 
   // Keep the feed scrolled to the latest message.
   useEffect(() => {
@@ -153,6 +186,11 @@ export default function GroupFeed({ groups, userId, userEmail }: Props) {
               </option>
             ))}
           </select>
+        </div>
+
+        {/* Live globe: tracked satellites of the selected group, propagated client-side */}
+        <div className="flex-shrink-0 mx-auto" title="Live view of this group's tracked satellites">
+          <GroupGlobe satellites={globeSats} size={84} />
         </div>
 
         <button
