@@ -49,3 +49,21 @@ export interface SentAlert {
   pass_start_utc: number;
   sent_at: string;
 }
+
+export interface GroupMessage {
+  id: string;
+  group_id: string;
+  user_id: string;
+  author_email: string;
+  body: string;
+  created_at: string;
+}
+
+export interface GroupFeedSubscription {
+  id: string;
+  group_id: string;
+  user_id: string;
+  email: string;
+  active: boolean;
+  created_at: string;
+}

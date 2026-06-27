@@ -37,7 +37,8 @@ artifacts/satellite-tracker/
 │       ├── satellite-position/ # Live position polling
 │       ├── geocode/          # Address → lat/lon
 │       ├── alerts/           # Alert pipeline (cron endpoint)
-│       └── alerts/subscriptions/ # CRUD for alert subscriptions
+│       ├── alerts/subscriptions/ # CRUD for alert subscriptions
+│       └── groups/messages/  # Group feed: post message + email subscribed members
 ├── lib/
 │   ├── supabase/             # server.ts, client.ts, middleware.ts
 │   ├── n2yo.ts               # N2YO API wrapper
@@ -52,7 +53,7 @@ artifacts/satellite-tracker/
 
 ## Database schema (Supabase)
 
-Tables: `locations`, `tracked_satellites`, `groups`, `group_members`, `alert_subscriptions`, `sent_alerts` — all with RLS enabled. Schema is already applied to the live Supabase project.
+Tables: `locations`, `tracked_satellites`, `groups`, `group_members`, `alert_subscriptions`, `sent_alerts`, `group_messages`, `group_feed_subscriptions` — all with RLS enabled. Schema is already applied to the live Supabase project.
 
 ## Architecture decisions
 

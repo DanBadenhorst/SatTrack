@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Satellite, Users, Bell } from "lucide-react";
+import GroupFeed from "./GroupFeed";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -130,6 +131,13 @@ export default async function DashboardPage() {
           </Link>
         ))}
       </div>
+
+      {/* Group message feed */}
+      <GroupFeed
+        groups={groups.map((g) => ({ id: g.id, name: g.name }))}
+        userId={user.id}
+        userEmail={user.email ?? ""}
+      />
     </div>
   );
 }

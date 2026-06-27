@@ -32,6 +32,24 @@ export async function createClient() {
   );
 }
 
+// Cookieless service-role client: never inherits the caller's session, so it
+// always executes with full service-role privileges (bypassing RLS). Use this
+// for server-side fan-out (e.g. notifying other group members on a new post).
+export function createServiceClient() {
+  return createServerClient(
+    supabaseUrl(),
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return [];
+        },
+        setAll() {},
+      },
+    }
+  );
+}
+
 export async function createAdminClient() {
   const cookieStore = await cookies();
   return createServerClient(

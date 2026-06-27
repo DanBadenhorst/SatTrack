@@ -1,2 +1,3 @@
 - [SatTrack DB schema management](sattrack-db.md) — live Supabase schema is applied by hand via SQL editor / Management API PAT, NOT by any in-app route; DATABASE_URL is unrelated.
 - [SatTrack .next is git-tracked](sattrack-next-cache.md) — the satellite-tracker .next dir is committed, so stale generated route types can fail typecheck after deleting pages.
+- [Supabase service-role client inherits caller session](supabase-service-client.md) — cookie-wired service-role client runs as the user under RLS in authed requests; use a cookieless one for cross-user fan-out.
