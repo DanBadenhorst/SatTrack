@@ -1,6 +1,0 @@
-{
-  "/groups/page": "app/groups/page.js",
-  "/dashboard/page": "app/dashboard/page.js",
-  "/passes/page": "app/passes/page.js",
-  "/satellites/page": "app/satellites/page.js"
-}
