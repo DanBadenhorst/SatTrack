@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getPasses } from "@/lib/n2yo";
+import { getPasses, getRadioPasses } from "@/lib/n2yo";
 import { sendPassAlert } from "@/lib/resend";
 
 // Manual "send test alert" endpoint for a specific subscription
@@ -25,7 +25,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Group has no observing location set" }, { status: 400 });
   }
 
-  const passData = await getPasses(
+  const fetchPasses = sub.pass_mode === "all" ? getRadioPasses : getPasses;
+  const passData = await fetchPasses(
     sub.satellite_norad_id, group.latitude, group.longitude, group.altitude ?? 0, 3, sub.min_elevation
   );
 

@@ -102,6 +102,7 @@ export default function PassesClient({ groups, alerts: initialAlerts, userId, us
         satellite_norad_id: sat.norad_id,
         group_id: selectedGroup.id,
         min_elevation: minEl,
+        pass_mode: mode,
         notify_minutes_before: 15,
         email: userEmail,
         active: true,

@@ -22,15 +22,17 @@ export async function POST(request: NextRequest) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await request.json();
-  const { satellite_norad_id, group_id, min_elevation = 10, notify_minutes_before = 15, email } = body;
+  const { satellite_norad_id, group_id, min_elevation = 10, pass_mode = "visible", notify_minutes_before = 15, email } = body;
 
   if (!satellite_norad_id || !group_id || !email) {
     return NextResponse.json({ error: "satellite_norad_id, group_id, and email required" }, { status: 400 });
   }
 
+  const mode = pass_mode === "all" ? "all" : "visible";
+
   const { data, error } = await supabase
     .from("alert_subscriptions")
-    .insert({ user_id: user.id, satellite_norad_id, group_id, min_elevation, notify_minutes_before, email })
+    .insert({ user_id: user.id, satellite_norad_id, group_id, min_elevation, pass_mode: mode, notify_minutes_before, email })
     .select()
     .single();
 

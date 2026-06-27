@@ -35,6 +35,7 @@ export interface AlertSubscription {
   satellite_norad_id: number;
   group_id: string;
   min_elevation: number;
+  pass_mode: "visible" | "all";
   notify_minutes_before: number;
   email: string;
   active: boolean;

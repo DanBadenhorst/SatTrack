@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
-import { getPasses } from "@/lib/n2yo";
+import { getPasses, getRadioPasses } from "@/lib/n2yo";
 import { sendBatchAlerts, AlertPayload } from "@/lib/resend";
 
 // This route is called by a cron job (or manually) to send pending alerts
@@ -38,7 +38,8 @@ export async function POST(request: NextRequest) {
     if (!group || group.latitude == null || group.longitude == null) continue;
 
     try {
-      const passData = await getPasses(
+      const fetchPasses = sub.pass_mode === "all" ? getRadioPasses : getPasses;
+      const passData = await fetchPasses(
         sub.satellite_norad_id,
         group.latitude,
         group.longitude,
