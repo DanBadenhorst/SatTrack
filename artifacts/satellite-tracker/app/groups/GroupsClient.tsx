@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { Users, Plus, Copy, Check, LogOut, Crown, MapPin, Search, Globe, Pencil } from "lucide-react";
+import { Users, Copy, Check, LogOut, Crown, MapPin, Search, Globe, Pencil } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 interface GroupRow {
@@ -417,15 +417,6 @@ export default function GroupsClient({ memberships: initial, userId }: Props) {
                   </div>
                 </div>
               ))}
-
-              <div className="flex gap-3">
-                <button onClick={() => setTab("create")} className="px-4 py-2 rounded-lg bg-space-700 hover:bg-space-600 text-white text-sm font-medium transition-colors flex items-center gap-1.5">
-                  <Plus className="w-4 h-4" /> New group
-                </button>
-                <button onClick={() => setTab("join")} className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm transition-colors">
-                  Join with code
-                </button>
-              </div>
             </div>
           )}
         </div>
