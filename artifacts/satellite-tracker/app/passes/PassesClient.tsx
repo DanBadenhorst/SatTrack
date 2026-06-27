@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { TrackedSatellite, AlertSubscription } from "@/lib/types";
 import { MapPin, Satellite, Bell, BellOff, Users, Map } from "lucide-react";
@@ -39,15 +39,40 @@ interface Props {
   alerts: AlertSubscription[];
   userId: string;
   userEmail: string;
+  initialGroupId?: string | null;
+  initialNoradId?: number | null;
 }
 
-export default function PassesClient({ groups, alerts: initialAlerts, userId, userEmail }: Props) {
+export default function PassesClient({
+  groups,
+  alerts: initialAlerts,
+  userId,
+  userEmail,
+  initialGroupId = null,
+  initialNoradId = null,
+}: Props) {
   const groupsWithLocation = groups.filter((g) => g.latitude != null && g.longitude != null);
-  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(groupsWithLocation[0]?.id ?? null);
+
+  // Honor a deep link from the dashboard globe: pre-select the requested group
+  // (if it has a location) and the clicked satellite, falling back to the first
+  // available group otherwise.
+  const initialGroup =
+    (initialGroupId && groupsWithLocation.find((g) => g.id === initialGroupId)) ||
+    groupsWithLocation[0] ||
+    null;
+
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(initialGroup?.id ?? null);
   const selectedGroup = groups.find((g) => g.id === selectedGroupId) ?? null;
   const satellites = selectedGroup?.tracked_satellites ?? [];
 
-  const [selectedSatIds, setSelectedSatIds] = useState<Set<string>>(new Set());
+  const initialSat =
+    initialNoradId != null
+      ? initialGroup?.tracked_satellites.find((s) => s.norad_id === initialNoradId) ?? null
+      : null;
+
+  const [selectedSatIds, setSelectedSatIds] = useState<Set<string>>(
+    initialSat ? new Set([initialSat.id]) : new Set()
+  );
   const [days, setDays] = useState(3);
   const [minEl, setMinEl] = useState(10);
   const [mode, setMode] = useState<PassMode>("visible");
@@ -87,6 +112,18 @@ export default function PassesClient({ groups, alerts: initialAlerts, userId, us
     setResults(data.results ?? []);
     setLoading(false);
   }
+
+  // When arriving via a globe deep link with a satellite preselected, fetch its
+  // predictions automatically so the user lands on results without a click.
+  const autoFetched = useRef(false);
+  useEffect(() => {
+    if (autoFetched.current) return;
+    if (initialSat && selectedGroup) {
+      autoFetched.current = true;
+      fetchPasses();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function toggleAlert(sat: TrackedSatellite) {
     if (!selectedGroup) return;

@@ -14,6 +14,7 @@ export interface GlobeSatellite {
 interface Props {
   satellites: GlobeSatellite[];
   size?: number;
+  onSatelliteClick?: (noradId: number) => void;
 }
 
 const EARTH_RADIUS_KM = 6371;
@@ -25,6 +26,7 @@ interface TrackedDot {
   satrec: satellite.SatRec;
   mesh: THREE.Mesh;
   name: string;
+  noradId: number;
 }
 
 interface Tooltip {
@@ -37,13 +39,16 @@ interface Tooltip {
 // tiny dots on the ~84px globe are easy to target with mouse or touch.
 const HOVER_RADIUS_PX = 12;
 
-export default function GroupGlobe({ satellites, size = 84 }: Props) {
+export default function GroupGlobe({ satellites, size = 84, onSatelliteClick }: Props) {
   const mountRef = useRef<HTMLDivElement>(null);
   const satGroupRef = useRef<THREE.Group | null>(null);
   const dotsRef = useRef<TrackedDot[]>([]);
   const dotGeoRef = useRef<THREE.SphereGeometry | null>(null);
   const dotMatRef = useRef<THREE.MeshBasicMaterial | null>(null);
   const [tooltip, setTooltip] = useState<Tooltip | null>(null);
+  // Keep the latest click handler reachable from the one-time scene effect.
+  const onSatelliteClickRef = useRef(onSatelliteClick);
+  onSatelliteClickRef.current = onSatelliteClick;
 
   // One-time scene setup. Reads live satellites from dotsRef each frame.
   useEffect(() => {
@@ -131,9 +136,9 @@ export default function GroupGlobe({ satellites, size = 84 }: Props) {
       const rect = renderer.domElement.getBoundingClientRect();
       const px = clientX - rect.left;
       const py = clientY - rect.top;
-      let best: { name: string; x: number; y: number } | null = null;
+      let best: { name: string; noradId: number; x: number; y: number } | null = null;
       let bestDist = HOVER_RADIUS_PX;
-      for (const { mesh, name } of dotsRef.current) {
+      for (const { mesh, name, noradId } of dotsRef.current) {
         if (!mesh.visible) continue;
         mesh.getWorldPosition(worldPos);
         if (isOccludedByEarth(worldPos)) continue;
@@ -144,7 +149,7 @@ export default function GroupGlobe({ satellites, size = 84 }: Props) {
         const d = Math.hypot(sx - px, sy - py);
         if (d < bestDist) {
           bestDist = d;
-          best = { name, x: sx, y: sy };
+          best = { name, noradId, x: sx, y: sy };
         }
       }
       return best;
@@ -163,11 +168,22 @@ export default function GroupGlobe({ satellites, size = 84 }: Props) {
       // Touch: a tap surfaces the nearest dot's name.
       if (e.pointerType === "touch") setTooltip(pickDot(e.clientX, e.clientY));
     };
+    const handleClick = (e: MouseEvent) => {
+      // A click directly on a satellite dot opens that satellite's predictions.
+      // Clicks elsewhere on the globe bubble up to the wrapping link/handler.
+      const hit = pickDot(e.clientX, e.clientY);
+      if (hit && onSatelliteClickRef.current) {
+        e.preventDefault();
+        e.stopPropagation();
+        onSatelliteClickRef.current(hit.noradId);
+      }
+    };
 
     const canvas = renderer.domElement;
     canvas.addEventListener("pointermove", handlePointerMove);
     canvas.addEventListener("pointerleave", handlePointerLeave);
     canvas.addEventListener("pointerdown", handlePointerDown);
+    canvas.addEventListener("click", handleClick);
 
     let raf = 0;
     let last = performance.now();
@@ -214,6 +230,7 @@ export default function GroupGlobe({ satellites, size = 84 }: Props) {
       canvas.removeEventListener("pointermove", handlePointerMove);
       canvas.removeEventListener("pointerleave", handlePointerLeave);
       canvas.removeEventListener("pointerdown", handlePointerDown);
+      canvas.removeEventListener("click", handleClick);
       for (const { mesh } of dotsRef.current) satGroup.remove(mesh);
       dotsRef.current = [];
       earthGeo.dispose();
@@ -248,7 +265,7 @@ export default function GroupGlobe({ satellites, size = 84 }: Props) {
         const mesh = new THREE.Mesh(geo, mat);
         mesh.visible = false;
         satGroup.add(mesh);
-        next.push({ satrec, mesh, name: s.name });
+        next.push({ satrec, mesh, name: s.name, noradId: s.norad_id });
       } catch {
         // Skip satellites with malformed TLE data.
       }

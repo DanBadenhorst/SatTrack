@@ -2,7 +2,12 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import PassesClient, { GroupWithSatellites } from "./PassesClient";
 
-export default async function PassesPage() {
+export default async function PassesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ group?: string; sat?: string }>;
+}) {
+  const { group, sat } = await searchParams;
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/auth/login");
@@ -19,12 +24,16 @@ export default async function PassesPage() {
     .map((m) => (m as { groups: unknown }).groups as GroupWithSatellites | null)
     .filter((g): g is GroupWithSatellites => g != null);
 
+  const initialNoradId = sat != null && /^\d+$/.test(sat) ? Number(sat) : null;
+
   return (
     <PassesClient
       groups={groups}
       alerts={alerts ?? []}
       userId={user.id}
       userEmail={user.email ?? ""}
+      initialGroupId={group ?? null}
+      initialNoradId={initialNoradId}
     />
   );
 }

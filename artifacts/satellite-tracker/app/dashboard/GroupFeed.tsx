@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { MessageSquare, Send, Bell, BellOff } from "lucide-react";
 import type { GroupMessage } from "@/lib/types";
@@ -37,6 +37,7 @@ function formatTime(iso: string) {
 }
 
 export default function GroupFeed({ groups, userId, userEmail }: Props) {
+  const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
   const [selectedId, setSelectedId] = useState(groups[0]?.id ?? "");
   const [messages, setMessages] = useState<GroupMessage[]>([]);
@@ -48,6 +49,19 @@ export default function GroupFeed({ groups, userId, userEmail }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [globeSats, setGlobeSats] = useState<GlobeSatellite[]>([]);
   const listRef = useRef<HTMLDivElement>(null);
+
+  // Navigate to the passes page for the selected group, optionally pre-selecting
+  // a specific satellite (by NORAD id) the user clicked on the globe.
+  const openPasses = useCallback(
+    (noradId?: number) => {
+      const params = new URLSearchParams();
+      if (selectedId) params.set("group", selectedId);
+      if (noradId != null) params.set("sat", String(noradId));
+      const qs = params.toString();
+      router.push(qs ? `/passes?${qs}` : "/passes");
+    },
+    [router, selectedId]
+  );
 
   const loadMessages = useCallback(
     async (groupId: string, showSpinner = false) => {
@@ -195,9 +209,21 @@ export default function GroupFeed({ groups, userId, userEmail }: Props) {
             Live view of this group&apos;s satellites{" "}
             <span className="text-space-300">(click to see Pass predictions)</span>
           </p>
-          <Link href="/passes" className="block transition-opacity hover:opacity-90">
-            <GroupGlobe satellites={globeSats} size={210} />
-          </Link>
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => openPasses()}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") openPasses();
+            }}
+            className="block cursor-pointer transition-opacity hover:opacity-90"
+          >
+            <GroupGlobe
+              satellites={globeSats}
+              size={210}
+              onSatelliteClick={(noradId) => openPasses(noradId)}
+            />
+          </div>
         </div>
 
         <button
