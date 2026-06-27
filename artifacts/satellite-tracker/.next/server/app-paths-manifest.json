@@ -1,6 +1,1 @@
-{
-  "/api/passes/route": "app/api/passes/route.js",
-  "/dashboard/page": "app/dashboard/page.js",
-  "/passes/page": "app/passes/page.js",
-  "/groups/page": "app/groups/page.js"
-}
+{}
