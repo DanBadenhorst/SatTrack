@@ -68,12 +68,12 @@ export default async function HomePage() {
             {
               icon: <Satellite className="w-6 h-6" />,
               title: "Live Pass Predictions",
-              desc: "Real-time pass predictions powered by N2YO for any satellite from your saved locations. See azimuth, elevation, and visibility windows.",
+              desc: "Real-time pass predictions powered by N2YO for any satellite from your group's observing site. See azimuth, elevation, and visibility windows.",
             },
             {
               icon: <Users className="w-6 h-6" />,
               title: "Group Coordination",
-              desc: "Create groups, share locations, and coordinate around the best passes. Everyone sees the same pass window — no more missed contacts.",
+              desc: "Spin up a group with one shared observing location. Everyone tracks the same satellites and sees the same pass window — no more missed contacts.",
             },
             {
               icon: <Bell className="w-6 h-6" />,
@@ -82,8 +82,8 @@ export default async function HomePage() {
             },
             {
               icon: <MapPin className="w-6 h-6" />,
-              title: "Multiple Locations",
-              desc: "Save your home QTH, portable sites, and club locations. Switch between them instantly to see passes from anywhere.",
+              title: "Shared Observing Site",
+              desc: "Each group has one observing location set by an admin, so every member coordinates around the exact same horizon and pass times.",
             },
             {
               icon: <Radio className="w-6 h-6" />,

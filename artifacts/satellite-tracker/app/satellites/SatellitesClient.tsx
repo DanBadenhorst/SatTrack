@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { TrackedSatellite } from "@/lib/types";
-import { Satellite, Plus, Trash2, Search, Radio } from "lucide-react";
+import { Satellite, Plus, Trash2, Radio, Users, MapPin } from "lucide-react";
 
 const POPULAR_SATELLITES = [
   { norad_id: 25544, name: "ISS (ZARYA)", category: "Space Station" },
@@ -22,44 +22,59 @@ const POPULAR_SATELLITES = [
   { norad_id: 43013, name: "METEOR-M 2-1", category: "Weather" },
 ];
 
-interface Props {
-  initialSatellites: TrackedSatellite[];
-  userId: string;
+export interface GroupWithSatellites {
+  id: string;
+  name: string;
+  description: string | null;
+  location_name: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  altitude: number | null;
+  role: "admin" | "member";
+  tracked_satellites: TrackedSatellite[];
 }
 
-export default function SatellitesClient({ initialSatellites, userId }: Props) {
-  const [satellites, setSatellites] = useState(initialSatellites);
+interface Props {
+  groups: GroupWithSatellites[];
+}
+
+export default function SatellitesClient({ groups: initialGroups }: Props) {
+  const [groups, setGroups] = useState(initialGroups);
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(initialGroups[0]?.id ?? null);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ norad_id: "", name: "", category: "", notes: "" });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [filterCat, setFilterCat] = useState("All");
   const supabase = createClient();
 
-  const categories = ["All", ...Array.from(new Set(satellites.map((s) => s.category ?? "Other")))];
+  const selectedGroup = groups.find((g) => g.id === selectedGroupId) ?? null;
+  const satellites = selectedGroup?.tracked_satellites ?? [];
+  const trackedIds = new Set(satellites.map((s) => s.norad_id));
 
-  const filtered = satellites.filter(
-    (s) => filterCat === "All" || s.category === filterCat
-  );
+  function updateGroupSatellites(groupId: string, next: TrackedSatellite[]) {
+    setGroups(groups.map((g) => (g.id === groupId ? { ...g, tracked_satellites: next } : g)));
+  }
 
   async function addSatellite(norad_id: number, name: string, category: string) {
+    if (!selectedGroup) return;
     if (satellites.some((s) => s.norad_id === norad_id)) return;
     const { data, error: err } = await supabase
       .from("tracked_satellites")
-      .insert({ user_id: userId, norad_id, name, category })
+      .insert({ group_id: selectedGroup.id, norad_id, name, category })
       .select()
       .single();
-    if (!err && data) setSatellites([...satellites, data]);
+    if (!err && data) updateGroupSatellites(selectedGroup.id, [...satellites, data]);
   }
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
+    if (!selectedGroup) return;
     setSaving(true);
     setError(null);
     const { data, error: err } = await supabase
       .from("tracked_satellites")
       .insert({
-        user_id: userId,
+        group_id: selectedGroup.id,
         norad_id: parseInt(form.norad_id),
         name: form.name,
         category: form.category || null,
@@ -70,7 +85,7 @@ export default function SatellitesClient({ initialSatellites, userId }: Props) {
     if (err) {
       setError(err.message);
     } else {
-      setSatellites([...satellites, data]);
+      updateGroupSatellites(selectedGroup.id, [...satellites, data]);
       setForm({ norad_id: "", name: "", category: "", notes: "" });
       setShowForm(false);
     }
@@ -78,18 +93,32 @@ export default function SatellitesClient({ initialSatellites, userId }: Props) {
   }
 
   async function deleteSatellite(id: string) {
+    if (!selectedGroup) return;
     await supabase.from("tracked_satellites").delete().eq("id", id);
-    setSatellites(satellites.filter((s) => s.id !== id));
+    updateGroupSatellites(selectedGroup.id, satellites.filter((s) => s.id !== id));
   }
 
-  const trackedIds = new Set(satellites.map((s) => s.norad_id));
+  if (groups.length === 0) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-8">
+        <h1 className="text-2xl font-bold text-white mb-2">Satellites</h1>
+        <div className="text-center py-16 text-slate-500">
+          <Users className="w-10 h-10 mx-auto mb-3 opacity-40" />
+          <p className="mb-4">Satellites are tracked per group. Create or join a group first.</p>
+          <a href="/groups" className="px-4 py-2 rounded-lg bg-space-600 hover:bg-space-700 text-white text-sm font-medium transition-colors">
+            Go to groups
+          </a>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-white">Satellites</h1>
-          <p className="text-slate-400 text-sm mt-1">Track satellites for pass predictions</p>
+          <p className="text-slate-400 text-sm mt-1">Track satellites for your group&apos;s pass predictions</p>
         </div>
         <button
           onClick={() => setShowForm(!showForm)}
@@ -98,6 +127,36 @@ export default function SatellitesClient({ initialSatellites, userId }: Props) {
           <Plus className="w-4 h-4" />
           Add by NORAD ID
         </button>
+      </div>
+
+      {/* Group selector */}
+      <div className="mb-6">
+        <label className="block text-xs text-slate-400 uppercase mb-2">Group</label>
+        <div className="flex flex-wrap gap-2">
+          {groups.map((g) => (
+            <button
+              key={g.id}
+              onClick={() => setSelectedGroupId(g.id)}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
+                selectedGroupId === g.id
+                  ? "bg-space-800 border border-space-600 text-space-200"
+                  : "bg-slate-800 border border-transparent text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              <Users className="w-3.5 h-3.5" />
+              {g.name}
+              <span className="text-xs text-slate-500">({g.tracked_satellites.length})</span>
+            </button>
+          ))}
+        </div>
+        {selectedGroup && (
+          <p className="flex items-center gap-1.5 text-xs text-slate-500 mt-2">
+            <MapPin className="w-3.5 h-3.5" />
+            {selectedGroup.latitude != null
+              ? `${selectedGroup.location_name ?? "Observing site"} · ${selectedGroup.latitude.toFixed(3)}°, ${selectedGroup.longitude!.toFixed(3)}°`
+              : "No tracking location set for this group"}
+          </p>
+        )}
       </div>
 
       {/* Custom satellite form */}
@@ -188,37 +247,20 @@ export default function SatellitesClient({ initialSatellites, userId }: Props) {
         </div>
       </div>
 
-      {/* My satellites */}
+      {/* Group satellites */}
       <div>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-medium text-slate-400 uppercase">My tracked satellites ({satellites.length})</h2>
-          {categories.length > 1 && (
-            <div className="flex gap-1">
-              {categories.map((c) => (
-                <button
-                  key={c}
-                  onClick={() => setFilterCat(c)}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${
-                    filterCat === c
-                      ? "bg-space-700 text-space-200"
-                      : "text-slate-500 hover:text-slate-300"
-                  }`}
-                >
-                  {c}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+        <h2 className="text-sm font-medium text-slate-400 uppercase mb-3">
+          Tracked by {selectedGroup?.name} ({satellites.length})
+        </h2>
 
-        {filtered.length === 0 ? (
+        {satellites.length === 0 ? (
           <div className="text-center py-12 text-slate-500">
             <Satellite className="w-10 h-10 mx-auto mb-3 opacity-40" />
             <p>No satellites yet. Add some from the list above.</p>
           </div>
         ) : (
           <ul className="space-y-2">
-            {filtered.map((sat) => (
+            {satellites.map((sat) => (
               <li key={sat.id} className="flex items-center gap-4 p-4 rounded-xl bg-slate-900/60 border border-slate-800">
                 <div className="w-9 h-9 rounded-lg bg-slate-800 flex items-center justify-center flex-shrink-0">
                   <Satellite className="w-4 h-4 text-slate-400" />

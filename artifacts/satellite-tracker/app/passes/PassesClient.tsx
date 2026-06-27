@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { Location, TrackedSatellite, AlertSubscription } from "@/lib/types";
-import { Radio, MapPin, Satellite, Bell, BellOff, ChevronDown, Info, Map } from "lucide-react";
+import { TrackedSatellite, AlertSubscription } from "@/lib/types";
+import { MapPin, Satellite, Bell, BellOff, Users, Map } from "lucide-react";
 import dynamic from "next/dynamic";
 
 const PassMap = dynamic(() => import("@/components/PassMap"), { ssr: false });
@@ -21,17 +21,31 @@ interface PassResult {
   error?: string;
 }
 
+export interface GroupWithSatellites {
+  id: string;
+  name: string;
+  description: string | null;
+  location_name: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  altitude: number | null;
+  tracked_satellites: TrackedSatellite[];
+}
+
 interface Props {
-  locations: Location[];
-  satellites: TrackedSatellite[];
+  groups: GroupWithSatellites[];
   alerts: AlertSubscription[];
   userId: string;
   userEmail: string;
 }
 
-export default function PassesClient({ locations, satellites, alerts: initialAlerts, userId, userEmail }: Props) {
-  const [selectedLocation, setSelectedLocation] = useState<Location | null>(locations[0] ?? null);
-  const [selectedSatIds, setSelectedSatIds] = useState<Set<string>>(new Set(satellites.slice(0, 3).map(s => s.id)));
+export default function PassesClient({ groups, alerts: initialAlerts, userId, userEmail }: Props) {
+  const groupsWithLocation = groups.filter((g) => g.latitude != null && g.longitude != null);
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(groupsWithLocation[0]?.id ?? null);
+  const selectedGroup = groups.find((g) => g.id === selectedGroupId) ?? null;
+  const satellites = selectedGroup?.tracked_satellites ?? [];
+
+  const [selectedSatIds, setSelectedSatIds] = useState<Set<string>>(new Set());
   const [days, setDays] = useState(3);
   const [minEl, setMinEl] = useState(10);
   const [results, setResults] = useState<PassResult[]>([]);
@@ -41,22 +55,28 @@ export default function PassesClient({ locations, satellites, alerts: initialAle
   const [mapSat, setMapSat] = useState<TrackedSatellite | null>(null);
   const supabase = createClient();
 
-  const selectedSatellites = satellites.filter(s => selectedSatIds.has(s.id));
+  const selectedSatellites = satellites.filter((s) => selectedSatIds.has(s.id));
+
+  function selectGroup(id: string) {
+    setSelectedGroupId(id);
+    setSelectedSatIds(new Set());
+    setResults([]);
+  }
 
   async function fetchPasses() {
-    if (!selectedLocation || selectedSatellites.length === 0) return;
+    if (!selectedGroup || selectedGroup.latitude == null || selectedSatellites.length === 0) return;
     setLoading(true);
     setResults([]);
     const res = await fetch("/api/passes", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        lat: selectedLocation.latitude,
-        lng: selectedLocation.longitude,
-        alt: selectedLocation.altitude,
+        lat: selectedGroup.latitude,
+        lng: selectedGroup.longitude,
+        alt: selectedGroup.altitude ?? 0,
         days,
         minElevation: minEl,
-        satellites: selectedSatellites.map(s => ({ norad_id: s.norad_id, name: s.name })),
+        satellites: selectedSatellites.map((s) => ({ norad_id: s.norad_id, name: s.name })),
       }),
     });
     const data = await res.json();
@@ -65,18 +85,18 @@ export default function PassesClient({ locations, satellites, alerts: initialAle
   }
 
   async function toggleAlert(sat: TrackedSatellite) {
-    if (!selectedLocation) return;
+    if (!selectedGroup) return;
     const existing = alerts.find(
-      a => a.satellite_norad_id === sat.norad_id && a.location_id === selectedLocation.id
+      (a) => a.satellite_norad_id === sat.norad_id && a.group_id === selectedGroup.id
     );
     if (existing) {
       await supabase.from("alert_subscriptions").delete().eq("id", existing.id);
-      setAlerts(alerts.filter(a => a.id !== existing.id));
+      setAlerts(alerts.filter((a) => a.id !== existing.id));
     } else {
       const { data } = await supabase.from("alert_subscriptions").insert({
         user_id: userId,
         satellite_norad_id: sat.norad_id,
-        location_id: selectedLocation.id,
+        group_id: selectedGroup.id,
         min_elevation: minEl,
         notify_minutes_before: 15,
         email: userEmail,
@@ -88,12 +108,12 @@ export default function PassesClient({ locations, satellites, alerts: initialAle
 
   function hasAlert(sat: TrackedSatellite) {
     return alerts.some(
-      a => a.satellite_norad_id === sat.norad_id && a.location_id === selectedLocation?.id
+      (a) => a.satellite_norad_id === sat.norad_id && a.group_id === selectedGroup?.id
     );
   }
 
   function toggleSat(id: string) {
-    setSelectedSatIds(prev => {
+    setSelectedSatIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id); else next.add(id);
       return next;
@@ -110,44 +130,67 @@ export default function PassesClient({ locations, satellites, alerts: initialAle
     return "text-orange-400";
   }
 
-  const allPasses = results.flatMap(r => r.passes.map(p => ({ ...p, satName: r.satellite.name }))).sort((a, b) => a.startUTC - b.startUTC);
+  const allPasses = results.flatMap((r) => r.passes.map((p) => ({ ...p, satName: r.satellite.name }))).sort((a, b) => a.startUTC - b.startUTC);
+
+  if (groups.length === 0) {
+    return (
+      <div className="max-w-5xl mx-auto px-4 py-8">
+        <h1 className="text-2xl font-bold text-white mb-2">Upcoming Passes</h1>
+        <div className="text-center py-16 text-slate-500">
+          <Users className="w-10 h-10 mx-auto mb-3 opacity-40" />
+          <p className="mb-4">Passes are predicted from a group&apos;s location. Create or join a group first.</p>
+          <a href="/groups" className="px-4 py-2 rounded-lg bg-space-600 hover:bg-space-700 text-white text-sm font-medium transition-colors">
+            Go to groups
+          </a>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-white">Upcoming Passes</h1>
-          <p className="text-slate-400 text-sm mt-1">Select location and satellites, then fetch predictions</p>
+          <p className="text-slate-400 text-sm mt-1">Select a group and satellites, then fetch predictions</p>
         </div>
       </div>
 
       {/* Controls */}
       <div className="p-5 rounded-xl bg-slate-900 border border-slate-800 mb-6">
         <div className="grid md:grid-cols-2 gap-6">
-          {/* Location select */}
+          {/* Group select */}
           <div>
-            <label className="block text-xs text-slate-400 uppercase mb-2">Location</label>
-            {locations.length === 0 ? (
-              <p className="text-slate-500 text-sm">No locations — <a href="/locations" className="text-space-400">add one first</a></p>
-            ) : (
-              <div className="space-y-1">
-                {locations.map(loc => (
+            <label className="block text-xs text-slate-400 uppercase mb-2">Group</label>
+            <div className="space-y-1">
+              {groups.map((g) => {
+                const hasLoc = g.latitude != null && g.longitude != null;
+                return (
                   <button
-                    key={loc.id}
-                    onClick={() => setSelectedLocation(loc)}
+                    key={g.id}
+                    onClick={() => selectGroup(g.id)}
+                    disabled={!hasLoc}
                     className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
-                      selectedLocation?.id === loc.id
+                      selectedGroupId === g.id
                         ? "bg-space-800 border border-space-600 text-space-200"
-                        : "bg-slate-800 border border-transparent text-slate-400 hover:text-slate-200"
+                        : hasLoc
+                        ? "bg-slate-800 border border-transparent text-slate-400 hover:text-slate-200"
+                        : "bg-slate-800/50 border border-transparent text-slate-600 cursor-not-allowed"
                     }`}
                   >
-                    <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
-                    <span className="truncate">{loc.name}</span>
-                    {loc.is_default && <span className="ml-auto text-xs text-slate-500">default</span>}
+                    <Users className="w-3.5 h-3.5 flex-shrink-0" />
+                    <span className="truncate">{g.name}</span>
+                    {hasLoc ? (
+                      <span className="ml-auto flex items-center gap-1 text-xs text-slate-500 truncate">
+                        <MapPin className="w-3 h-3" /> {g.location_name ?? "site"}
+                      </span>
+                    ) : (
+                      <span className="ml-auto text-xs text-orange-500">no location</span>
+                    )}
                   </button>
-                ))}
-              </div>
-            )}
+                );
+              })}
+            </div>
           </div>
 
           {/* Settings */}
@@ -155,7 +198,7 @@ export default function PassesClient({ locations, satellites, alerts: initialAle
             <div>
               <label className="block text-xs text-slate-400 uppercase mb-2">Look-ahead</label>
               <div className="flex gap-2">
-                {[1, 2, 3, 5, 7].map(d => (
+                {[1, 2, 3, 5, 7].map((d) => (
                   <button key={d} onClick={() => setDays(d)}
                     className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${days === d ? "bg-space-700 text-space-200" : "bg-slate-800 text-slate-400 hover:text-slate-200"}`}>
                     {d}d
@@ -165,7 +208,7 @@ export default function PassesClient({ locations, satellites, alerts: initialAle
             </div>
             <div>
               <label className="block text-xs text-slate-400 uppercase mb-2">Min elevation: {minEl}°</label>
-              <input type="range" min={5} max={60} step={5} value={minEl} onChange={e => setMinEl(+e.target.value)}
+              <input type="range" min={5} max={60} step={5} value={minEl} onChange={(e) => setMinEl(+e.target.value)}
                 className="w-full accent-space-500" />
             </div>
           </div>
@@ -174,11 +217,13 @@ export default function PassesClient({ locations, satellites, alerts: initialAle
         {/* Satellite selection */}
         <div className="mt-5">
           <label className="block text-xs text-slate-400 uppercase mb-2">Satellites ({selectedSatIds.size} selected)</label>
-          {satellites.length === 0 ? (
-            <p className="text-slate-500 text-sm">No satellites — <a href="/satellites" className="text-space-400">add some first</a></p>
+          {!selectedGroup ? (
+            <p className="text-slate-500 text-sm">Select a group with a tracking location first.</p>
+          ) : satellites.length === 0 ? (
+            <p className="text-slate-500 text-sm">No satellites in this group — <a href="/satellites" className="text-space-400">add some first</a></p>
           ) : (
             <div className="flex flex-wrap gap-2">
-              {satellites.map(sat => (
+              {satellites.map((sat) => (
                 <button
                   key={sat.id}
                   onClick={() => toggleSat(sat.id)}
@@ -198,7 +243,7 @@ export default function PassesClient({ locations, satellites, alerts: initialAle
 
         <button
           onClick={fetchPasses}
-          disabled={loading || !selectedLocation || selectedSatellites.length === 0}
+          disabled={loading || !selectedGroup || selectedGroup.latitude == null || selectedSatellites.length === 0}
           className="mt-5 w-full py-2.5 rounded-lg bg-space-600 hover:bg-space-700 disabled:opacity-50 text-white font-semibold text-sm transition-colors"
         >
           {loading ? "Fetching passes…" : "Fetch passes"}
@@ -211,11 +256,11 @@ export default function PassesClient({ locations, satellites, alerts: initialAle
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-semibold text-white">
               {allPasses.length} passes found
-              {selectedLocation && <span className="font-normal text-slate-400"> from {selectedLocation.name}</span>}
+              {selectedGroup && <span className="font-normal text-slate-400"> from {selectedGroup.location_name ?? selectedGroup.name}</span>}
             </h2>
           </div>
 
-          {results.map(result => (
+          {results.map((result) => (
             <div key={result.satellite.id} className="mb-6">
               <div className="flex items-center gap-3 mb-3">
                 <Satellite className="w-4 h-4 text-space-400" />
@@ -283,7 +328,7 @@ export default function PassesClient({ locations, satellites, alerts: initialAle
       )}
 
       {/* Map modal */}
-      {showMap && mapSat && selectedLocation && (
+      {showMap && mapSat && selectedGroup && selectedGroup.latitude != null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
           <div className="w-full max-w-3xl bg-slate-900 rounded-2xl border border-slate-700 overflow-hidden">
             <div className="flex items-center justify-between p-4 border-b border-slate-800">
@@ -293,9 +338,9 @@ export default function PassesClient({ locations, satellites, alerts: initialAle
             <div className="h-96">
               <PassMap
                 noradId={mapSat.norad_id}
-                lat={selectedLocation.latitude}
-                lng={selectedLocation.longitude}
-                alt={selectedLocation.altitude}
+                lat={selectedGroup.latitude}
+                lng={selectedGroup.longitude!}
+                alt={selectedGroup.altitude ?? 0}
               />
             </div>
           </div>

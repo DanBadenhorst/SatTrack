@@ -17,13 +17,12 @@ export async function POST(request: NextRequest) {
 
   const supabase = await createAdminClient();
 
-  // Get all active subscriptions with location and user email
+  // Get all active subscriptions with the group's observing location
   const { data: subs, error } = await supabase
     .from("alert_subscriptions")
     .select(`
       *,
-      locations(name, latitude, longitude, altitude),
-      users:user_id(email)
+      groups(name, location_name, latitude, longitude, altitude)
     `)
     .eq("active", true);
 
@@ -35,15 +34,15 @@ export async function POST(request: NextRequest) {
   const now = Math.floor(Date.now() / 1000);
 
   for (const sub of subs) {
-    const loc = (sub as Record<string, unknown>).locations as { name: string; latitude: number; longitude: number; altitude: number } | null;
-    if (!loc) continue;
+    const group = (sub as Record<string, unknown>).groups as { name: string; location_name: string | null; latitude: number | null; longitude: number | null; altitude: number | null } | null;
+    if (!group || group.latitude == null || group.longitude == null) continue;
 
     try {
       const passData = await getPasses(
         sub.satellite_norad_id,
-        loc.latitude,
-        loc.longitude,
-        loc.altitude,
+        group.latitude,
+        group.longitude,
+        group.altitude ?? 0,
         1, // look ahead 1 day
         sub.min_elevation
       );
@@ -74,7 +73,7 @@ export async function POST(request: NextRequest) {
             toEmail: sub.email,
             toName: sub.email.split("@")[0],
             satelliteName: `NORAD ${sub.satellite_norad_id}`,
-            locationName: loc.name,
+            locationName: group.location_name ?? group.name,
             pass,
           });
         }

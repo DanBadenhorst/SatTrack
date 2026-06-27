@@ -1,57 +1,76 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { MapPin, Satellite, Users, Radio, ArrowRight, Plus, Bell } from "lucide-react";
+import { Satellite, Users, Radio, ArrowRight, Plus, Bell } from "lucide-react";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/auth/login");
 
-  const [{ data: locations }, { data: satellites }, { data: groups }, { data: alerts }] =
-    await Promise.all([
-      supabase.from("locations").select("*").eq("user_id", user.id),
-      supabase.from("tracked_satellites").select("*").eq("user_id", user.id),
-      supabase.from("group_members").select("group_id, groups(name)").eq("user_id", user.id),
-      supabase.from("alert_subscriptions").select("*").eq("user_id", user.id).eq("active", true),
-    ]);
+  const { data: memberships } = await supabase
+    .from("group_members")
+    .select("group_id, role, groups(*)")
+    .eq("user_id", user.id);
 
-  const defaultLocation = locations?.find((l) => l.is_default) ?? locations?.[0];
+  const groups = (memberships ?? [])
+    .map((m) => (m as { groups: unknown }).groups as {
+      id: string;
+      name: string;
+      latitude: number | null;
+      longitude: number | null;
+      location_name: string | null;
+    } | null)
+    .filter((g): g is NonNullable<typeof g> => g != null);
+
+  const groupIds = groups.map((g) => g.id);
+  const groupWithLocation = groups.find((g) => g.latitude != null && g.longitude != null);
+
+  const [{ data: satellites }, { data: alerts }] = await Promise.all([
+    groupIds.length
+      ? supabase.from("tracked_satellites").select("id").in("group_id", groupIds)
+      : Promise.resolve({ data: [] as { id: string }[] }),
+    supabase.from("alert_subscriptions").select("id").eq("user_id", user.id).eq("active", true),
+  ]);
+
+  const satCount = satellites?.length ?? 0;
+  const alertCount = alerts?.length ?? 0;
+  const groupCount = groups.length;
 
   const stats = [
     {
-      label: "Saved Locations",
-      value: locations?.length ?? 0,
-      icon: <MapPin className="w-5 h-5" />,
-      href: "/locations",
-      color: "text-blue-400",
-      bg: "bg-blue-900/20 border-blue-800",
-    },
-    {
-      label: "Tracked Satellites",
-      value: satellites?.length ?? 0,
-      icon: <Satellite className="w-5 h-5" />,
-      href: "/satellites",
-      color: "text-purple-400",
-      bg: "bg-purple-900/20 border-purple-800",
-    },
-    {
       label: "Groups",
-      value: groups?.length ?? 0,
+      value: groupCount,
       icon: <Users className="w-5 h-5" />,
       href: "/groups",
       color: "text-green-400",
       bg: "bg-green-900/20 border-green-800",
     },
     {
+      label: "Tracked Satellites",
+      value: satCount,
+      icon: <Satellite className="w-5 h-5" />,
+      href: "/satellites",
+      color: "text-purple-400",
+      bg: "bg-purple-900/20 border-purple-800",
+    },
+    {
       label: "Active Alerts",
-      value: alerts?.length ?? 0,
+      value: alertCount,
       icon: <Bell className="w-5 h-5" />,
       href: "/passes",
       color: "text-orange-400",
       bg: "bg-orange-900/20 border-orange-800",
     },
   ];
+
+  const checklist = [
+    { done: groupWithLocation != null, label: "Add or join a group with tracking location", href: "/groups" },
+    { done: satCount > 0, label: "Track some satellites", href: "/satellites" },
+    { done: alertCount > 0, label: "Set up pass alerts", href: "/passes" },
+  ];
+
+  const canSeePasses = groupWithLocation != null && satCount > 0;
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
@@ -60,14 +79,14 @@ export default async function DashboardPage() {
         <h1 className="text-2xl font-bold text-white">Dashboard</h1>
         <p className="text-slate-400 mt-1">
           Welcome back, {user.email?.split("@")[0]}.
-          {defaultLocation
-            ? ` Tracking from ${defaultLocation.name}.`
-            : " Add a location to start tracking passes."}
+          {groupWithLocation
+            ? ` Tracking from ${groupWithLocation.location_name ?? groupWithLocation.name}.`
+            : " Create or join a group with a tracking location to start."}
         </p>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-3 gap-4 mb-8">
         {stats.map((s) => (
           <Link
             key={s.label}
@@ -84,7 +103,7 @@ export default async function DashboardPage() {
       {/* Quick actions */}
       <div className="grid md:grid-cols-2 gap-6">
         {/* Get passes CTA */}
-        {defaultLocation && satellites && satellites.length > 0 ? (
+        {canSeePasses ? (
           <div className="rounded-xl bg-gradient-to-br from-space-950 to-slate-900 border border-space-800 p-6">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 rounded-xl bg-space-800 flex items-center justify-center">
@@ -92,7 +111,7 @@ export default async function DashboardPage() {
               </div>
               <div>
                 <h2 className="font-semibold text-white">Next passes</h2>
-                <p className="text-xs text-slate-400">From {defaultLocation.name}</p>
+                <p className="text-xs text-slate-400">From {groupWithLocation.location_name ?? groupWithLocation.name}</p>
               </div>
             </div>
             <Link
@@ -106,16 +125,16 @@ export default async function DashboardPage() {
         ) : (
           <div className="rounded-xl bg-slate-900/60 border border-slate-800 border-dashed p-6 flex flex-col gap-3">
             <p className="text-slate-400 text-sm">
-              {!defaultLocation
-                ? "Add a location to start seeing satellite passes."
-                : "Add some satellites to track passes."}
+              {!groupWithLocation
+                ? "Create or join a group with a tracking location to start seeing satellite passes."
+                : "Track some satellites to see passes."}
             </p>
             <Link
-              href={!defaultLocation ? "/locations" : "/satellites"}
+              href={!groupWithLocation ? "/groups" : "/satellites"}
               className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-medium transition-colors w-fit"
             >
               <Plus className="w-4 h-4" />
-              {!defaultLocation ? "Add location" : "Add satellites"}
+              {!groupWithLocation ? "Go to groups" : "Add satellites"}
             </Link>
           </div>
         )}
@@ -124,12 +143,7 @@ export default async function DashboardPage() {
         <div className="rounded-xl bg-slate-900/60 border border-slate-800 p-6">
           <h2 className="font-semibold text-white mb-4">Setup checklist</h2>
           <ul className="space-y-3">
-            {[
-              { done: (locations?.length ?? 0) > 0, label: "Add your location", href: "/locations" },
-              { done: (satellites?.length ?? 0) > 0, label: "Track some satellites", href: "/satellites" },
-              { done: (alerts?.length ?? 0) > 0, label: "Set up pass alerts", href: "/passes" },
-              { done: (groups?.length ?? 0) > 0, label: "Join or create a group", href: "/groups" },
-            ].map((item) => (
+            {checklist.map((item) => (
               <li key={item.label} className="flex items-center gap-3">
                 <div
                   className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${

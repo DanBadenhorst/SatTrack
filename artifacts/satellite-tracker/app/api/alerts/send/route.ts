@@ -13,17 +13,20 @@ export async function POST(request: NextRequest) {
 
   const { data: sub } = await supabase
     .from("alert_subscriptions")
-    .select("*, locations(name, latitude, longitude, altitude)")
+    .select("*, groups(name, location_name, latitude, longitude, altitude)")
     .eq("id", subscription_id)
     .eq("user_id", user.id)
     .single();
 
   if (!sub) return NextResponse.json({ error: "Subscription not found" }, { status: 404 });
 
-  const loc = (sub as Record<string, unknown>).locations as { name: string; latitude: number; longitude: number; altitude: number };
+  const group = (sub as Record<string, unknown>).groups as { name: string; location_name: string | null; latitude: number | null; longitude: number | null; altitude: number | null } | null;
+  if (!group || group.latitude == null || group.longitude == null) {
+    return NextResponse.json({ error: "Group has no observing location set" }, { status: 400 });
+  }
 
   const passData = await getPasses(
-    sub.satellite_norad_id, loc.latitude, loc.longitude, loc.altitude, 3, sub.min_elevation
+    sub.satellite_norad_id, group.latitude, group.longitude, group.altitude ?? 0, 3, sub.min_elevation
   );
 
   const nextPass = passData.passes?.[0];
@@ -33,7 +36,7 @@ export async function POST(request: NextRequest) {
     toEmail: user.email!,
     toName: user.email!.split("@")[0],
     satelliteName: `NORAD ${sub.satellite_norad_id}`,
-    locationName: loc.name,
+    locationName: group.location_name ?? group.name,
     pass: nextPass,
   });
 

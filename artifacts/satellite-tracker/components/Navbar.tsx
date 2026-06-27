@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
-import { Satellite, LayoutDashboard, MapPin, Radio, Users, Bell, LogOut, Menu, X } from "lucide-react";
+import { Satellite, LayoutDashboard, Radio, Users, Bell, LogOut, Menu, X } from "lucide-react";
 import { useState } from "react";
 import type { User } from "@supabase/supabase-js";
 
@@ -14,7 +14,6 @@ interface NavbarProps {
 
 const navLinks = [
   { href: "/dashboard", label: "Dashboard", icon: <LayoutDashboard className="w-4 h-4" /> },
-  { href: "/locations", label: "Locations", icon: <MapPin className="w-4 h-4" /> },
   { href: "/satellites", label: "Satellites", icon: <Satellite className="w-4 h-4" /> },
   { href: "/passes", label: "Passes", icon: <Radio className="w-4 h-4" /> },
   { href: "/groups", label: "Groups", icon: <Users className="w-4 h-4" /> },

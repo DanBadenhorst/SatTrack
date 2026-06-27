@@ -14,8 +14,7 @@ export async function DELETE(
   const { error } = await supabase
     .from("tracked_satellites")
     .delete()
-    .eq("id", id)
-    .eq("user_id", user.id);
+    .eq("id", id);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return new NextResponse(null, { status: 204 });
@@ -36,7 +35,6 @@ export async function PATCH(
     .from("tracked_satellites")
     .update(body)
     .eq("id", id)
-    .eq("user_id", user.id)
     .select()
     .single();
 
