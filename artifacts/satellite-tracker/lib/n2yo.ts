@@ -61,22 +61,33 @@ export async function getPasses(
   days: number = 3,
   minElevation: number = 10
 ): Promise<PassesResponse> {
-  const cacheKey = `${noradId}-${lat.toFixed(3)}-${lng.toFixed(3)}-${days}-${minElevation}`;
+  // NOTE: the 6th param of N2YO's /visualpasses endpoint is "min visibility in
+  // seconds", NOT minimum elevation. We fetch the full visible set (min
+  // visibility 1s) and filter by peak elevation ourselves below. Caching the
+  // raw set independently of minElevation lets the elevation slider re-filter
+  // without spending extra N2YO transactions.
+  const cacheKey = `${noradId}-${lat.toFixed(3)}-${lng.toFixed(3)}-${days}`;
   const cached = passCache.get(cacheKey);
+  let data: PassesResponse;
+
   if (cached && Date.now() - cached.fetchedAt < CACHE_TTL_MS) {
-    return cached.data;
+    data = cached.data;
+  } else {
+    const url = `${N2YO_BASE}/visualpasses/${noradId}/${lat}/${lng}/${alt}/${days}/1/&apiKey=${API_KEY}`;
+    const res = await fetch(url, { next: { revalidate: 900 } });
+    if (!res.ok) {
+      throw new Error(`N2YO API error: ${res.status} ${res.statusText}`);
+    }
+    data = await res.json();
+    passCache.set(cacheKey, { data, fetchedAt: Date.now() });
   }
 
-  const url = `${N2YO_BASE}/visualpasses/${noradId}/${lat}/${lng}/${alt}/${days}/${minElevation}/&apiKey=${API_KEY}`;
-
-  const res = await fetch(url, { next: { revalidate: 900 } });
-  if (!res.ok) {
-    throw new Error(`N2YO API error: ${res.status} ${res.statusText}`);
-  }
-
-  const data: PassesResponse = await res.json();
-  passCache.set(cacheKey, { data, fetchedAt: Date.now() });
-  return data;
+  const passes = (data.passes ?? []).filter((p) => p.maxEl >= minElevation);
+  return {
+    ...data,
+    info: { ...data.info, passescount: passes.length },
+    passes,
+  };
 }
 
 export async function getRadioPasses(
