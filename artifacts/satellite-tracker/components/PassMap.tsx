@@ -86,6 +86,7 @@ export default function PassMap({ noradId, lat, lng, alt }: Props) {
         </div>
       )}
       <MapContainer
+        key={`${noradId}-${lat}-${lng}`}
         center={position ? satPos : [lat, lng]}
         zoom={3}
         style={{ height: "100%", width: "100%", background: "#0a0a1a" }}
