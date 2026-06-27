@@ -2,9 +2,7 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { useRouter } from "next/navigation";
 import { Satellite, Mail, Lock, AlertCircle } from "lucide-react";
-import Link from "next/link";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -13,7 +11,6 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
-  const router = useRouter();
   const supabase = createClient();
 
   async function handleSubmit(e: React.FormEvent) {
@@ -23,22 +20,36 @@ export default function LoginPage() {
     setSuccess(null);
 
     if (mode === "signup") {
-      const { error } = await supabase.auth.signUp({ email, password });
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: window.location.origin + "/auth/callback",
+        },
+      });
       if (error) {
         setError(error.message);
+        setLoading(false);
       } else {
-        setSuccess("Check your email for a confirmation link.");
+        // Auto-confirm is enabled — sign them straight in
+        const { error: loginErr } = await supabase.auth.signInWithPassword({ email, password });
+        if (loginErr) {
+          setSuccess("Account created! Check your email to confirm, then sign in.");
+          setLoading(false);
+        } else {
+          window.location.href = "/dashboard";
+        }
       }
     } else {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) {
         setError(error.message);
+        setLoading(false);
       } else {
-        router.push("/dashboard");
-        router.refresh();
+        // Hard navigation so the server-side middleware picks up the session cookie
+        window.location.href = "/dashboard";
       }
     }
-    setLoading(false);
   }
 
   return (
@@ -137,7 +148,7 @@ export default function LoginPage() {
             <>
               No account?{" "}
               <button
-                onClick={() => { setMode("signup"); setError(null); }}
+                onClick={() => { setMode("signup"); setError(null); setSuccess(null); }}
                 className="text-space-400 hover:text-space-300"
               >
                 Sign up free
@@ -147,7 +158,7 @@ export default function LoginPage() {
             <>
               Already have an account?{" "}
               <button
-                onClick={() => { setMode("login"); setError(null); }}
+                onClick={() => { setMode("login"); setError(null); setSuccess(null); }}
                 className="text-space-400 hover:text-space-300"
               >
                 Sign in
