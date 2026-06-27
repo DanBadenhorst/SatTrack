@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { Satellite, Mail, Lock, AlertCircle } from "lucide-react";
 
 export default function LoginPage() {
@@ -10,51 +9,39 @@ export default function LoginPage() {
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState<string | null>(null);
-  const supabase = createClient();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    setSuccess(null);
 
-    if (mode === "signup") {
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: window.location.origin + "/auth/callback",
-        },
+    const endpoint = mode === "signup" ? "/api/auth/signup" : "/api/auth/login";
+
+    try {
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
       });
-      if (error) {
-        setError(error.message);
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error ?? "Something went wrong");
         setLoading(false);
-      } else {
-        // Auto-confirm is enabled — sign them straight in
-        const { error: loginErr } = await supabase.auth.signInWithPassword({ email, password });
-        if (loginErr) {
-          setSuccess("Account created! Check your email to confirm, then sign in.");
-          setLoading(false);
-        } else {
-          window.location.href = "/dashboard";
-        }
+        return;
       }
-    } else {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) {
-        setError(error.message);
-        setLoading(false);
-      } else {
-        // Hard navigation so the server-side middleware picks up the session cookie
-        window.location.href = "/dashboard";
-      }
+
+      // Session cookie is now set server-side — hard navigate so middleware sees it
+      window.location.href = "/dashboard";
+    } catch {
+      setError("Network error — please try again");
+      setLoading(false);
     }
   }
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4 relative">
-      {/* Stars */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         {Array.from({ length: 50 }).map((_, i) => (
           <div
@@ -72,7 +59,6 @@ export default function LoginPage() {
       </div>
 
       <div className="w-full max-w-sm relative">
-        {/* Logo */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-space-600 mb-4">
             <Satellite className="w-6 h-6 text-white" />
@@ -91,11 +77,6 @@ export default function LoginPage() {
             <div className="flex items-start gap-2 p-3 rounded-lg bg-red-900/30 border border-red-800 text-red-300 text-sm">
               <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
               <span>{error}</span>
-            </div>
-          )}
-          {success && (
-            <div className="p-3 rounded-lg bg-green-900/30 border border-green-800 text-green-300 text-sm">
-              {success}
             </div>
           )}
 
@@ -148,7 +129,7 @@ export default function LoginPage() {
             <>
               No account?{" "}
               <button
-                onClick={() => { setMode("signup"); setError(null); setSuccess(null); }}
+                onClick={() => { setMode("signup"); setError(null); }}
                 className="text-space-400 hover:text-space-300"
               >
                 Sign up free
@@ -158,7 +139,7 @@ export default function LoginPage() {
             <>
               Already have an account?{" "}
               <button
-                onClick={() => { setMode("login"); setError(null); setSuccess(null); }}
+                onClick={() => { setMode("login"); setError(null); }}
                 className="text-space-400 hover:text-space-300"
               >
                 Sign in
