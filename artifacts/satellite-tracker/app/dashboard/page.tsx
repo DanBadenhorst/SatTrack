@@ -65,9 +65,9 @@ export default async function DashboardPage() {
   ];
 
   const checklist = [
-    { done: groupWithLocation != null, label: "Add or join a group with tracking location", href: "/groups" },
-    { done: satCount > 0, label: "Track some satellites", href: "/satellites" },
-    { done: alertCount > 0, label: "Set up pass alerts", href: "/passes" },
+    { done: groupWithLocation != null, label: "Add or join a group with tracking location", href: "/groups", page: "Groups" },
+    { done: satCount > 0, label: "Track some satellites", href: "/satellites", page: "Satellites" },
+    { done: alertCount > 0, label: "Set up pass alerts", href: "/passes", page: "Passes" },
   ];
 
   const canSeePasses = groupWithLocation != null && satCount > 0;
@@ -159,10 +159,12 @@ export default async function DashboardPage() {
                   )}
                 </div>
                 {item.done ? (
-                  <span className="text-sm text-slate-500 line-through">{item.label}</span>
+                  <span className="text-sm text-slate-500 line-through">
+                    {item.label} <span className="text-slate-600">[{item.page}]</span>
+                  </span>
                 ) : (
                   <Link href={item.href} className="text-sm text-slate-300 hover:text-white">
-                    {item.label}
+                    {item.label} <span className="text-slate-500">[{item.page}]</span>
                   </Link>
                 )}
               </li>
