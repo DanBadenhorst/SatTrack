@@ -1,1 +1,1 @@
-self.__REACT_LOADABLE_MANIFEST="{}"
+self.__REACT_LOADABLE_MANIFEST="{\"app/passes/PassesClient.tsx -> @/components/PassMap\":{\"id\":\"app/passes/PassesClient.tsx -> @/components/PassMap\",\"files\":[\"static/css/_app-pages-browser_components_PassMap_tsx.css\",\"static/chunks/_app-pages-browser_components_PassMap_tsx.js\"]}}"

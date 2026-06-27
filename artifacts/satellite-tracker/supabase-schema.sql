@@ -84,19 +84,48 @@ CREATE POLICY "locations_own" ON locations FOR ALL USING (auth.uid() = user_id);
 -- Tracked satellites: users can only see and manage their own
 CREATE POLICY "tracked_satellites_own" ON tracked_satellites FOR ALL USING (auth.uid() = user_id);
 
--- Groups: visible to members; anyone can insert (to create); only members can update/delete
+-- Membership checks run as SECURITY DEFINER so they bypass RLS on group_members.
+-- This is REQUIRED: referencing group_members inside a group_members (or groups)
+-- policy directly causes "infinite recursion detected in policy" errors.
+CREATE OR REPLACE FUNCTION public.is_group_member(gid uuid)
+RETURNS boolean
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM group_members
+    WHERE group_id = gid AND user_id = auth.uid()
+  );
+$$;
+
+CREATE OR REPLACE FUNCTION public.is_group_admin(gid uuid)
+RETURNS boolean
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM group_members
+    WHERE group_id = gid AND user_id = auth.uid() AND role = 'admin'
+  );
+$$;
+
+-- Groups: visible to members + creator; anyone can insert (to create); admins/creator can update
 CREATE POLICY "groups_select" ON groups FOR SELECT USING (
-  id IN (SELECT group_id FROM group_members WHERE user_id = auth.uid())
+  created_by = auth.uid() OR public.is_group_member(id)
 );
 CREATE POLICY "groups_insert" ON groups FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
 CREATE POLICY "groups_update" ON groups FOR UPDATE USING (
-  id IN (SELECT group_id FROM group_members WHERE user_id = auth.uid() AND role = 'admin')
+  created_by = auth.uid() OR public.is_group_admin(id)
 );
 CREATE POLICY "groups_delete" ON groups FOR DELETE USING (created_by = auth.uid());
 
--- Group members: members can see their group; anyone can join (insert); only leave yourself
+-- Group members: members can see fellow members; anyone can join (insert self); only leave yourself
 CREATE POLICY "group_members_select" ON group_members FOR SELECT USING (
-  group_id IN (SELECT group_id FROM group_members gm2 WHERE gm2.user_id = auth.uid())
+  user_id = auth.uid() OR public.is_group_member(group_id)
 );
 CREATE POLICY "group_members_insert" ON group_members FOR INSERT WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "group_members_delete" ON group_members FOR DELETE USING (auth.uid() = user_id);
