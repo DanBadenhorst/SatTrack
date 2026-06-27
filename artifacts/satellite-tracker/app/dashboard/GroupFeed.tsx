@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { MessageSquare, Send, Bell, BellOff } from "lucide-react";
 import type { GroupMessage } from "@/lib/types";
@@ -189,8 +190,14 @@ export default function GroupFeed({ groups, userId, userEmail }: Props) {
         </div>
 
         {/* Live globe: tracked satellites of the selected group, propagated client-side */}
-        <div className="flex-shrink-0 mx-auto" title="Live view of this group's tracked satellites">
-          <GroupGlobe satellites={globeSats} size={210} />
+        <div className="flex-shrink-0 mx-auto flex flex-col items-center gap-1.5">
+          <p className="text-center text-xs text-slate-400">
+            Live view of this group&apos;s satellites{" "}
+            <span className="text-space-300">(click to see Pass predictions)</span>
+          </p>
+          <Link href="/passes" className="block transition-opacity hover:opacity-90">
+            <GroupGlobe satellites={globeSats} size={210} />
+          </Link>
         </div>
 
         <button
