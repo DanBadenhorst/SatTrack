@@ -10,7 +10,7 @@ import type { GlobeSatellite } from "@/components/GroupGlobe";
 // Leaflet-style dynamic import: WebGL needs the DOM, so render client-only.
 const GroupGlobe = dynamic(() => import("@/components/GroupGlobe"), {
   ssr: false,
-  loading: () => <div style={{ width: 84, height: 84 }} aria-hidden="true" />,
+  loading: () => <div style={{ width: 210, height: 210 }} aria-hidden="true" />,
 });
 
 interface GroupOption {
@@ -190,7 +190,7 @@ export default function GroupFeed({ groups, userId, userEmail }: Props) {
 
         {/* Live globe: tracked satellites of the selected group, propagated client-side */}
         <div className="flex-shrink-0 mx-auto" title="Live view of this group's tracked satellites">
-          <GroupGlobe satellites={globeSats} size={84} />
+          <GroupGlobe satellites={globeSats} size={210} />
         </div>
 
         <button

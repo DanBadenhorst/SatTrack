@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import * as satellite from "satellite.js";
 
@@ -24,7 +24,18 @@ const EARTH_TEXTURE_URL =
 interface TrackedDot {
   satrec: satellite.SatRec;
   mesh: THREE.Mesh;
+  name: string;
 }
+
+interface Tooltip {
+  name: string;
+  x: number;
+  y: number;
+}
+
+// Screen-space radius (px) within which a dot counts as hovered. Generous so the
+// tiny dots on the ~84px globe are easy to target with mouse or touch.
+const HOVER_RADIUS_PX = 12;
 
 export default function GroupGlobe({ satellites, size = 84 }: Props) {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -32,6 +43,7 @@ export default function GroupGlobe({ satellites, size = 84 }: Props) {
   const dotsRef = useRef<TrackedDot[]>([]);
   const dotGeoRef = useRef<THREE.SphereGeometry | null>(null);
   const dotMatRef = useRef<THREE.MeshBasicMaterial | null>(null);
+  const [tooltip, setTooltip] = useState<Tooltip | null>(null);
 
   // One-time scene setup. Reads live satellites from dotsRef each frame.
   useEffect(() => {
@@ -97,6 +109,66 @@ export default function GroupGlobe({ satellites, size = 84 }: Props) {
     dir.position.set(5, 3, 5);
     scene.add(dir);
 
+    // Hover/tap detection: find the visible dot nearest the pointer in screen
+    // space (forgiving for tiny dots) and skip ones hidden behind the Earth.
+    const worldPos = new THREE.Vector3();
+    const camDir = new THREE.Vector3();
+
+    const isOccludedByEarth = (p: THREE.Vector3) => {
+      // Ray from camera to the dot; the Earth is a unit sphere at the origin.
+      camDir.copy(p).sub(camera.position);
+      const distToDot = camDir.length();
+      camDir.divideScalar(distToDot);
+      const b = camera.position.dot(camDir);
+      const c = camera.position.lengthSq() - 1;
+      const disc = b * b - c;
+      if (disc < 0) return false; // ray misses the Earth entirely
+      const t = -b - Math.sqrt(disc); // nearest sphere intersection
+      return t > 0 && t < distToDot - 0.02; // Earth sits in front of the dot
+    };
+
+    const pickDot = (clientX: number, clientY: number) => {
+      const rect = renderer.domElement.getBoundingClientRect();
+      const px = clientX - rect.left;
+      const py = clientY - rect.top;
+      let best: { name: string; x: number; y: number } | null = null;
+      let bestDist = HOVER_RADIUS_PX;
+      for (const { mesh, name } of dotsRef.current) {
+        if (!mesh.visible) continue;
+        mesh.getWorldPosition(worldPos);
+        if (isOccludedByEarth(worldPos)) continue;
+        worldPos.project(camera);
+        if (worldPos.z > 1) continue; // outside the view frustum
+        const sx = (worldPos.x * 0.5 + 0.5) * rect.width;
+        const sy = (-worldPos.y * 0.5 + 0.5) * rect.height;
+        const d = Math.hypot(sx - px, sy - py);
+        if (d < bestDist) {
+          bestDist = d;
+          best = { name, x: sx, y: sy };
+        }
+      }
+      return best;
+    };
+
+    const handlePointerMove = (e: PointerEvent) => {
+      const hit = pickDot(e.clientX, e.clientY);
+      setTooltip(hit);
+      renderer.domElement.style.cursor = hit ? "pointer" : "default";
+    };
+    const handlePointerLeave = () => {
+      setTooltip(null);
+      renderer.domElement.style.cursor = "default";
+    };
+    const handlePointerDown = (e: PointerEvent) => {
+      // Touch: a tap surfaces the nearest dot's name.
+      if (e.pointerType === "touch") setTooltip(pickDot(e.clientX, e.clientY));
+    };
+
+    const canvas = renderer.domElement;
+    canvas.addEventListener("pointermove", handlePointerMove);
+    canvas.addEventListener("pointerleave", handlePointerLeave);
+    canvas.addEventListener("pointerdown", handlePointerDown);
+
     let raf = 0;
     let last = performance.now();
 
@@ -139,6 +211,9 @@ export default function GroupGlobe({ satellites, size = 84 }: Props) {
 
     return () => {
       cancelAnimationFrame(raf);
+      canvas.removeEventListener("pointermove", handlePointerMove);
+      canvas.removeEventListener("pointerleave", handlePointerLeave);
+      canvas.removeEventListener("pointerdown", handlePointerDown);
       for (const { mesh } of dotsRef.current) satGroup.remove(mesh);
       dotsRef.current = [];
       earthGeo.dispose();
@@ -173,7 +248,7 @@ export default function GroupGlobe({ satellites, size = 84 }: Props) {
         const mesh = new THREE.Mesh(geo, mat);
         mesh.visible = false;
         satGroup.add(mesh);
-        next.push({ satrec, mesh });
+        next.push({ satrec, mesh, name: s.name });
       } catch {
         // Skip satellites with malformed TLE data.
       }
@@ -185,5 +260,26 @@ export default function GroupGlobe({ satellites, size = 84 }: Props) {
     };
   }, [satellites]);
 
-  return <div ref={mountRef} style={{ width: size, height: size }} aria-hidden="true" />;
+  return (
+    <div style={{ position: "relative", width: size, height: size }}>
+      <div ref={mountRef} style={{ width: size, height: size }} aria-hidden="true" />
+      {tooltip && (
+        <div
+          role="tooltip"
+          style={{
+            position: "absolute",
+            left: tooltip.x,
+            top: tooltip.y - 8,
+            transform: "translate(-50%, -100%)",
+            pointerEvents: "none",
+            whiteSpace: "nowrap",
+            zIndex: 10,
+          }}
+          className="rounded-md bg-slate-950/90 border border-slate-700 px-2 py-0.5 text-[11px] font-medium text-space-200 shadow-lg"
+        >
+          {tooltip.name}
+        </div>
+      )}
+    </div>
+  );
 }
