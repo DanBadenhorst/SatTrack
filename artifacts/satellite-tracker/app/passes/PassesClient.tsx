@@ -12,8 +12,10 @@ interface Pass {
   startAz: number; startAzCompass: string; startEl: number; startUTC: number;
   maxAz: number; maxAzCompass: string; maxEl: number; maxUTC: number;
   endAz: number; endAzCompass: string; endEl: number; endUTC: number;
-  mag: number; duration: number;
+  mag?: number; duration?: number;
 }
+
+type PassMode = "visible" | "all";
 
 interface PassResult {
   satellite: TrackedSatellite;
@@ -48,6 +50,7 @@ export default function PassesClient({ groups, alerts: initialAlerts, userId, us
   const [selectedSatIds, setSelectedSatIds] = useState<Set<string>>(new Set());
   const [days, setDays] = useState(3);
   const [minEl, setMinEl] = useState(10);
+  const [mode, setMode] = useState<PassMode>("visible");
   const [results, setResults] = useState<PassResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [alerts, setAlerts] = useState(initialAlerts);
@@ -76,6 +79,7 @@ export default function PassesClient({ groups, alerts: initialAlerts, userId, us
         alt: selectedGroup.altitude ?? 0,
         days,
         minElevation: minEl,
+        mode,
         satellites: selectedSatellites.map((s) => ({ norad_id: s.norad_id, name: s.name })),
       }),
     });
@@ -128,6 +132,17 @@ export default function PassesClient({ groups, alerts: initialAlerts, userId, us
     if (el >= 60) return "text-green-400";
     if (el >= 30) return "text-yellow-400";
     return "text-orange-400";
+  }
+
+  // Lower magnitude = brighter. Returns a label + badge styling, or null if the
+  // pass has no magnitude (radio passes don't report brightness).
+  function brightness(mag?: number) {
+    if (mag == null) return null;
+    if (mag <= -3) return { label: "Brilliant", cls: "bg-purple-900/40 border-purple-600 text-purple-200" };
+    if (mag <= -1) return { label: "Very bright", cls: "bg-sky-900/40 border-sky-600 text-sky-200" };
+    if (mag <= 1.5) return { label: "Bright", cls: "bg-teal-900/40 border-teal-600 text-teal-200" };
+    if (mag <= 3.5) return { label: "Moderate", cls: "bg-slate-800 border-slate-600 text-slate-300" };
+    return { label: "Faint", cls: "bg-slate-800/60 border-slate-700 text-slate-500" };
   }
 
   const allPasses = results.flatMap((r) => r.passes.map((p) => ({ ...p, satName: r.satellite.name }))).sort((a, b) => a.startUTC - b.startUTC);
@@ -211,6 +226,25 @@ export default function PassesClient({ groups, alerts: initialAlerts, userId, us
               <input type="range" min={5} max={60} step={5} value={minEl} onChange={(e) => setMinEl(+e.target.value)}
                 className="w-full accent-space-500" />
             </div>
+            <div>
+              <label className="block text-xs text-slate-400 uppercase mb-2">Pass type</label>
+              <div className="flex gap-2">
+                {([
+                  { key: "visible", label: "Visible only" },
+                  { key: "all", label: "All (radio)" },
+                ] as { key: PassMode; label: string }[]).map((m) => (
+                  <button key={m.key} onClick={() => setMode(m.key)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${mode === m.key ? "bg-space-700 text-space-200" : "bg-slate-800 text-slate-400 hover:text-slate-200"}`}>
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-1.5 text-xs text-slate-500">
+                {mode === "visible"
+                  ? "Only passes visible to the naked eye (satellite sunlit, sky dark)."
+                  : `All passes reaching ${minEl}°+, day or night — for radio work.`}
+              </p>
+            </div>
           </div>
         </div>
 
@@ -291,15 +325,25 @@ export default function PassesClient({ groups, alerts: initialAlerts, userId, us
               {result.error ? (
                 <div className="p-3 rounded-lg bg-red-900/20 border border-red-800 text-red-300 text-sm">{result.error}</div>
               ) : result.passes.length === 0 ? (
-                <div className="p-3 rounded-lg bg-slate-900 border border-slate-800 text-slate-500 text-sm">No passes in the next {days} days with min elevation {minEl}°.</div>
+                <div className="p-3 rounded-lg bg-slate-900 border border-slate-800 text-slate-500 text-sm">No {mode === "visible" ? "visible " : ""}passes in the next {days} days with min elevation {minEl}°.</div>
               ) : (
                 <div className="space-y-2">
                   {result.passes.slice(0, 10).map((pass, i) => (
                     <div key={i} className="flex items-start gap-4 p-4 rounded-xl bg-slate-900/60 border border-slate-800 hover:border-slate-600 transition-colors">
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-3 mb-1">
+                        <div className="flex items-center gap-3 mb-1 flex-wrap">
                           <span className="text-sm font-medium text-white">{formatTime(pass.startUTC)}</span>
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-400">{Math.round(pass.duration / 60)} min</span>
+                          {pass.duration != null && (
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-400">{Math.round(pass.duration / 60)} min</span>
+                          )}
+                          {(() => {
+                            const b = brightness(pass.mag);
+                            return b ? (
+                              <span className={`text-xs px-2 py-0.5 rounded-full border ${b.cls}`} title={`Magnitude ${pass.mag!.toFixed(1)}`}>
+                                {b.label} · mag {pass.mag!.toFixed(1)}
+                              </span>
+                            ) : null;
+                          })()}
                           {pass.maxEl >= 60 && <span className="text-xs px-2 py-0.5 rounded-full bg-green-900/40 border border-green-700 text-green-300">Excellent</span>}
                           {pass.maxEl >= 30 && pass.maxEl < 60 && <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-900/40 border border-yellow-700 text-yellow-300">Good</span>}
                         </div>

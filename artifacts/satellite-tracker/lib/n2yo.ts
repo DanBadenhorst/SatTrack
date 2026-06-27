@@ -14,8 +14,10 @@ export interface Pass {
   endAzCompass: string;
   endEl: number;
   endUTC: number;
-  mag: number;
-  duration: number;
+  // mag and duration are only returned by the visual-pass endpoint; radio
+  // passes omit them.
+  mag?: number;
+  duration?: number;
 }
 
 export interface PassesResponse {
@@ -66,7 +68,7 @@ export async function getPasses(
   // visibility 1s) and filter by peak elevation ourselves below. Caching the
   // raw set independently of minElevation lets the elevation slider re-filter
   // without spending extra N2YO transactions.
-  const cacheKey = `${noradId}-${lat.toFixed(3)}-${lng.toFixed(3)}-${days}`;
+  const cacheKey = `${noradId}-${lat.toFixed(3)}-${lng.toFixed(3)}-${alt}-${days}`;
   const cached = passCache.get(cacheKey);
   let data: PassesResponse;
 
@@ -98,21 +100,31 @@ export async function getRadioPasses(
   days: number = 3,
   minElevation: number = 10
 ): Promise<PassesResponse> {
-  const cacheKey = `radio-${noradId}-${lat.toFixed(3)}-${lng.toFixed(3)}-${days}-${minElevation}`;
+  // Fetch the full set (min elevation 1°) and filter by peak elevation
+  // ourselves so the elevation slider re-filters from cache without spending
+  // extra N2YO transactions — mirrors getPasses.
+  const cacheKey = `radio-${noradId}-${lat.toFixed(3)}-${lng.toFixed(3)}-${alt}-${days}`;
   const cached = passCache.get(cacheKey);
+  let data: PassesResponse;
+
   if (cached && Date.now() - cached.fetchedAt < CACHE_TTL_MS) {
-    return cached.data;
+    data = cached.data;
+  } else {
+    const url = `${N2YO_BASE}/radiopasses/${noradId}/${lat}/${lng}/${alt}/${days}/1/&apiKey=${API_KEY}`;
+    const res = await fetch(url, { next: { revalidate: 900 } });
+    if (!res.ok) {
+      throw new Error(`N2YO API error: ${res.status} ${res.statusText}`);
+    }
+    data = await res.json();
+    passCache.set(cacheKey, { data, fetchedAt: Date.now() });
   }
 
-  const url = `${N2YO_BASE}/radiopasses/${noradId}/${lat}/${lng}/${alt}/${days}/${minElevation}/&apiKey=${API_KEY}`;
-  const res = await fetch(url, { next: { revalidate: 900 } });
-  if (!res.ok) {
-    throw new Error(`N2YO API error: ${res.status} ${res.statusText}`);
-  }
-
-  const data: PassesResponse = await res.json();
-  passCache.set(cacheKey, { data, fetchedAt: Date.now() });
-  return data;
+  const passes = (data.passes ?? []).filter((p) => p.maxEl >= minElevation);
+  return {
+    ...data,
+    info: { ...data.info, passescount: passes.length },
+    passes,
+  };
 }
 
 export async function getSatellitePositions(

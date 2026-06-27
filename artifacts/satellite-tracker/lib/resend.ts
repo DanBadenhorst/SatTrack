@@ -66,7 +66,7 @@ export async function sendPassAlert(payload: AlertPayload) {
           </div>
           <div class="stat">
             <div class="stat-label">Duration</div>
-            <div class="stat-value">${Math.round(payload.pass.duration / 60)} min</div>
+            <div class="stat-value">${payload.pass.duration != null ? `${Math.round(payload.pass.duration / 60)} min` : "—"}</div>
           </div>
         </div>
 
