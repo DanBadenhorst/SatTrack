@@ -460,7 +460,7 @@ export default function PassesClient({
                         <div className="flex items-center gap-3 mb-1 flex-wrap">
                           <span className="text-sm font-medium text-white">{formatTime(pass.startUTC)}</span>
                           {pass.duration != null && (
-                            <span className="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-400">{Math.round(pass.duration / 60)} min</span>
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-400" title="How long the satellite stays above the horizon during this pass">{Math.round(pass.duration / 60)} min</span>
                           )}
                           {(() => {
                             const b = brightness(pass.mag);
@@ -470,8 +470,8 @@ export default function PassesClient({
                               </span>
                             ) : null;
                           })()}
-                          {pass.maxEl >= 60 && <span className="text-xs px-2 py-0.5 rounded-full bg-green-900/40 border border-green-700 text-green-300">Excellent</span>}
-                          {pass.maxEl >= 30 && pass.maxEl < 60 && <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-900/40 border border-yellow-700 text-yellow-300">Good</span>}
+                          {pass.maxEl >= 60 && <span className="text-xs px-2 py-0.5 rounded-full bg-green-900/40 border border-green-700 text-green-300" title={`${pass.maxEl.toFixed(0)}° max elevation`}>Excellent</span>}
+                          {pass.maxEl >= 30 && pass.maxEl < 60 && <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-900/40 border border-yellow-700 text-yellow-300" title={`${pass.maxEl.toFixed(0)}° max elevation`}>Good</span>}
                           {(() => {
                             const sky = skyCondition(pass.cloudCover);
                             return sky ? (
