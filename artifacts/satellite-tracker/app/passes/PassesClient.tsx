@@ -322,7 +322,7 @@ export default function PassesClient({
             </div>
             <div>
               <label className="block text-xs text-slate-400 uppercase mb-2">Min elevation: {minEl}°</label>
-              <input type="range" min={5} max={60} step={5} value={minEl} onChange={(e) => setMinEl(+e.target.value)}
+              <input type="range" min={5} max={90} step={5} value={minEl} onChange={(e) => setMinEl(+e.target.value)}
                 className="w-full accent-space-500" />
             </div>
             <div>
@@ -497,7 +497,7 @@ export default function PassesClient({
               {/* Min elevation */}
               <div>
                 <label className="block text-xs text-slate-400 uppercase mb-2">Min elevation: {aMinEl}°</label>
-                <input type="range" min={5} max={60} step={5} value={aMinEl} onChange={(e) => setAMinEl(+e.target.value)}
+                <input type="range" min={5} max={90} step={5} value={aMinEl} onChange={(e) => setAMinEl(+e.target.value)}
                   className="w-full accent-space-500" />
               </div>
 
