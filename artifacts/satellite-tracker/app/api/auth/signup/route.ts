@@ -1,6 +1,7 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
+import { getAppOrigin } from "@/lib/app-url";
 
 type CookieToSet = { name: string; value: string; options: CookieOptions };
 
@@ -34,7 +35,7 @@ export async function POST(request: NextRequest) {
     email,
     password,
     options: {
-      emailRedirectTo: `${request.nextUrl.origin}/auth/callback`,
+      emailRedirectTo: `${getAppOrigin(request)}/auth/callback`,
     },
   });
 

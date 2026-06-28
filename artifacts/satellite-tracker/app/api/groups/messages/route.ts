@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { sendGroupMessageEmails, GroupMessagePayload } from "@/lib/resend";
+import { getAppOrigin } from "@/lib/app-url";
 
 const nameFromEmail = (email: string) => email.split("@")[0];
 
@@ -74,7 +75,7 @@ export async function POST(request: NextRequest) {
       const authorName = nameFromEmail(user.email ?? "A member");
       // Deep link back to the dashboard feed with this group pre-selected so the
       // recipient can continue the conversation in one click.
-      const chatUrl = `${request.nextUrl.origin}/dashboard?group=${encodeURIComponent(groupId)}`;
+      const chatUrl = `${getAppOrigin(request)}/dashboard?group=${encodeURIComponent(groupId)}`;
       const payloads: GroupMessagePayload[] = recipients.map((s) => ({
         toEmail: s.email,
         groupName,
