@@ -126,10 +126,10 @@ export default function GroupFeed({ groups, userId, userEmail }: Props) {
     };
   }, [selectedId]);
 
-  // Keep the feed scrolled to the latest message.
+  // Keep the feed scrolled to the latest message (newest is rendered at the top).
   useEffect(() => {
     if (listRef.current) {
-      listRef.current.scrollTop = listRef.current.scrollHeight;
+      listRef.current.scrollTop = 0;
     }
   }, [messages]);
 
@@ -252,7 +252,30 @@ export default function GroupFeed({ groups, userId, userEmail }: Props) {
         </button>
       </div>
 
-      {/* Message list */}
+      {/* Composer */}
+      <form onSubmit={post} className="flex items-center gap-2 p-4 border-b border-slate-800">
+        <input
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder="Message your group…"
+          maxLength={2000}
+          className="flex-1 bg-slate-800 border border-slate-700 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-space-500"
+        />
+        <button
+          type="submit"
+          disabled={posting || !draft.trim()}
+          className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-space-600 hover:bg-space-700 text-white text-sm font-medium disabled:opacity-60 transition-colors"
+        >
+          <Send className="w-4 h-4" />
+          {posting ? "Sending…" : "Send"}
+        </button>
+      </form>
+
+      {error && (
+        <div className="px-4 pt-3 -mb-1 text-sm text-red-400">{error}</div>
+      )}
+
+      {/* Message list — newest first */}
       <div ref={listRef} className="max-h-80 overflow-y-auto p-4 space-y-3">
         {loading ? (
           <p className="text-sm text-slate-500 text-center py-8">Loading messages…</p>
@@ -261,7 +284,7 @@ export default function GroupFeed({ groups, userId, userEmail }: Props) {
             No messages yet. Start the conversation about the next good pass.
           </p>
         ) : (
-          messages.map((m) => {
+          [...messages].reverse().map((m) => {
             const mine = m.user_id === userId;
             return (
               <div key={m.id} className={`flex flex-col ${mine ? "items-end" : "items-start"}`}>
@@ -285,29 +308,6 @@ export default function GroupFeed({ groups, userId, userEmail }: Props) {
           })
         )}
       </div>
-
-      {/* Composer */}
-      <form onSubmit={post} className="flex items-center gap-2 p-4 border-t border-slate-800">
-        <input
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          placeholder="Message your group…"
-          maxLength={2000}
-          className="flex-1 bg-slate-800 border border-slate-700 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-space-500"
-        />
-        <button
-          type="submit"
-          disabled={posting || !draft.trim()}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-space-600 hover:bg-space-700 text-white text-sm font-medium disabled:opacity-60 transition-colors"
-        >
-          <Send className="w-4 h-4" />
-          {posting ? "Sending…" : "Send"}
-        </button>
-      </form>
-
-      {error && (
-        <div className="px-4 pb-4 -mt-2 text-sm text-red-400">{error}</div>
-      )}
     </div>
   );
 }
