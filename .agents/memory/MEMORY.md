@@ -3,3 +3,4 @@
 - [SatTrack Leaflet / React 19](sattrack-leaflet.md) — react-leaflet must be v5+ on Next 15 / React 19; v4 throws "invalid hook call" + "Map container already initialized" and crashes the live map.
 - [Supabase service-role client inherits caller session](supabase-service-client.md) — cookie-wired service-role client runs as the user under RLS in authed requests; use a cookieless one for cross-user fan-out.
 - [satellite.js v7 breaks webpack](sattrack-satellitejs.md) — satellite.js v7 ships WASM importing `node:module`, crashes Next/webpack client build; pin v5 (pure JS, bundles its own types).
+- [SatTrack Resend send results](sattrack-resend-send-results.md) — Resend resolves the promise even when the API rejects the email (non-null `.error`); "fulfilled" != delivered, so only mark sent_alerts after confirming delivery.

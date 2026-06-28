@@ -3,7 +3,12 @@ import { Pass } from "./n2yo";
 
 const resend = new Resend(process.env.RESEND_API_KEY!);
 
-const FROM_EMAIL = "SatTrack <onboarding@resend.dev>";
+// The "from" address. Resend's shared `onboarding@resend.dev` sandbox sender can
+// ONLY deliver to your own Resend account email — every other recipient is
+// rejected with a 403 until you verify a domain at resend.com/domains. Once
+// verified, set RESEND_FROM_EMAIL (e.g. "SatTrack <alerts@yourdomain.com>") and
+// emails will deliver to anyone, with no code change needed.
+const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || "SatTrack <onboarding@resend.dev>";
 
 export interface AlertPayload {
   toEmail: string;
@@ -153,29 +158,39 @@ export async function sendGroupMessageEmail(payload: GroupMessagePayload) {
   });
 }
 
-export async function sendGroupMessageEmails(payloads: GroupMessagePayload[]) {
-  const results = await Promise.allSettled(payloads.map(sendGroupMessageEmail));
-  return {
-    sent: results.filter((r) => r.status === "fulfilled").length,
-    failed: results.filter((r) => r.status === "rejected").length,
-  };
-}
-
-export async function sendBatchAlerts(payloads: AlertPayload[]) {
-  const dedupKeys = new Set<string>();
-  const deduped: AlertPayload[] = [];
-
-  for (const p of payloads) {
-    const key = `${p.toEmail}-${p.satelliteName}-${p.pass.startUTC}`;
-    if (!dedupKeys.has(key)) {
-      dedupKeys.add(key);
-      deduped.push(p);
+// Resend resolves the promise even when the API rejects the email (e.g. the 403
+// returned when sending from the sandbox address to a non-owner recipient), so a
+// "fulfilled" result with a non-null `.error` is still a failed send. This helper
+// logs every failure and returns accurate sent/failed counts.
+function tallySendResults(
+  label: string,
+  results: PromiseSettledResult<{ error: unknown } | unknown>[]
+) {
+  let sent = 0;
+  let failed = 0;
+  for (const r of results) {
+    if (r.status === "rejected") {
+      failed++;
+      console.error(`[resend] ${label} send threw:`, r.reason);
+    } else if (r.value && typeof r.value === "object" && "error" in r.value && r.value.error) {
+      failed++;
+      console.error(`[resend] ${label} send rejected by API:`, r.value.error);
+    } else {
+      sent++;
     }
   }
+  return { sent, failed };
+}
 
-  const results = await Promise.allSettled(deduped.map(sendPassAlert));
-  return {
-    sent: results.filter((r) => r.status === "fulfilled").length,
-    failed: results.filter((r) => r.status === "rejected").length,
-  };
+export async function sendGroupMessageEmails(payloads: GroupMessagePayload[]) {
+  const results = await Promise.allSettled(payloads.map(sendGroupMessageEmail));
+  return tallySendResults("group message", results);
+}
+
+// Returns true when a Resend send succeeded. Resend resolves its promise even
+// when the API rejects the email (non-null `.error`), so callers that need to
+// record a successful delivery (e.g. the alert cron's sent_alerts dedupe) must
+// check this rather than assume a resolved promise means delivered.
+export function isSendOk(result: { error: unknown } | unknown): boolean {
+  return !(result && typeof result === "object" && "error" in result && result.error);
 }
