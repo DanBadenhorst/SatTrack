@@ -322,8 +322,19 @@ export default function PassesClient({
         </button>
       </div>
 
+      {/* Loading state — visible feedback while predictions are fetched
+          (e.g. after a globe deep link auto-fetch) so the page never looks frozen. */}
+      {loading && (
+        <div className="space-y-3 animate-pulse">
+          <div className="h-5 w-56 rounded bg-slate-800" />
+          <div className="h-24 rounded-xl bg-slate-900/60 border border-slate-800" />
+          <div className="h-24 rounded-xl bg-slate-900/60 border border-slate-800" />
+          <div className="h-24 rounded-xl bg-slate-900/60 border border-slate-800" />
+        </div>
+      )}
+
       {/* Results */}
-      {results.length > 0 && (
+      {!loading && results.length > 0 && (
         <div>
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-semibold text-white">
