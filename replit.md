@@ -55,7 +55,7 @@ artifacts/satellite-tracker/
 
 Tables: `locations`, `tracked_satellites`, `groups`, `group_members`, `alert_subscriptions`, `sent_alerts`, `group_messages`, `group_feed_subscriptions` — all with RLS enabled. Schema is already applied to the live Supabase project.
 
-**Pending migration:** `supabase-migration-alert-days.sql` adds `days_of_week SMALLINT[]` (JS getDay indices, empty = every day) and `timezone TEXT` to `alert_subscriptions` for per-weekday alert filtering. Run it once in the Supabase SQL editor — until then, creating an alert will error (the Set Alert modal surfaces the failure).
+`alert_subscriptions` includes `days_of_week SMALLINT[]` (JS getDay indices, empty = every day) and `timezone TEXT` for per-weekday alert filtering. Reference DDL lives in `supabase-migration-alert-days.sql`; it has already been applied to the live database.
 
 ## Architecture decisions
 
