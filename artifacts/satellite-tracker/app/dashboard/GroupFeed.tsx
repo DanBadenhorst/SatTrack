@@ -207,7 +207,7 @@ export default function GroupFeed({ groups, userId, userEmail }: Props) {
         <div className="flex-shrink-0 mx-auto flex flex-col items-center gap-1.5">
           <p className="text-center text-xs text-slate-400">
             Live view of this group&apos;s satellites{" "}
-            <span className="text-space-300">(click to see Pass predictions)</span>
+            <span className="text-space-300">(click satellite to see Pass predictions)</span>
           </p>
           <div
             role="button"
