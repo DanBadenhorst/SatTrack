@@ -83,7 +83,7 @@ export default function PassesClient({
       : null;
 
   const [selectedSatIds, setSelectedSatIds] = useState<Set<string>>(
-    initialSat ? new Set([initialSat.id]) : new Set()
+    initialSat ? new Set([initialSat.id]) : new Set(satellites.map((s) => s.id))
   );
   const [days, setDays] = useState(3);
   const [minEl, setMinEl] = useState(10);
