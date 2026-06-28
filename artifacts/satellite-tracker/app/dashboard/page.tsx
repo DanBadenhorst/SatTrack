@@ -82,9 +82,6 @@ export default async function DashboardPage() {
         <h1 className="text-2xl font-bold text-white">Dashboard</h1>
         <p className="text-slate-400 mt-1">
           Welcome back, {user.email?.split("@")[0]}.
-          {groupWithLocation
-            ? ` Tracking from ${groupWithLocation.location_name ?? groupWithLocation.name}.`
-            : " Create or join a group with a tracking location to start."}
         </p>
       </div>
 
