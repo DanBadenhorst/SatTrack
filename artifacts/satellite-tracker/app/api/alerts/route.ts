@@ -58,10 +58,20 @@ function dateMarker(p: { year: string; month: string; day: string }): number {
 }
 
 export async function POST(request: NextRequest) {
-  // Simple auth: verify a shared secret in production
+  // Simple auth: verify a shared secret in production.
+  // Accepts either ALERT_CRON_SECRET (manual/external scheduler) or CRON_SECRET
+  // (auto-injected by Vercel Cron as `Authorization: Bearer <CRON_SECRET>`).
   const authHeader = request.headers.get("authorization");
-  const expectedSecret = process.env.ALERT_CRON_SECRET;
-  if (expectedSecret && authHeader !== `Bearer ${expectedSecret}`) {
+  const accepted = [process.env.ALERT_CRON_SECRET, process.env.CRON_SECRET].filter(
+    (s): s is string => Boolean(s),
+  );
+  if (accepted.length === 0) {
+    // Fail closed in production: refuse to run an unprotected digest pipeline.
+    if (process.env.NODE_ENV === "production") {
+      console.error("[alerts] no CRON_SECRET/ALERT_CRON_SECRET configured — refusing to run");
+      return NextResponse.json({ error: "Cron secret not configured" }, { status: 500 });
+    }
+  } else if (!accepted.some((s) => authHeader === `Bearer ${s}`)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -195,7 +205,12 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ sent, failed, skipped, total: subs.length });
 }
 
-// GET for health / status check
-export async function GET() {
+// GET is used by Vercel Cron (which only issues GET requests). When called with a
+// valid cron Bearer token it runs the digest; otherwise it's a simple health check.
+export async function GET(request: NextRequest) {
+  const authHeader = request.headers.get("authorization");
+  if (authHeader?.startsWith("Bearer ")) {
+    return POST(request);
+  }
   return NextResponse.json({ status: "Alert pipeline ready" });
 }
