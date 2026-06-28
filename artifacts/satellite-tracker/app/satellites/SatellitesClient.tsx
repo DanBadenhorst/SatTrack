@@ -42,7 +42,7 @@ export default function SatellitesClient({ groups: initialGroups }: Props) {
   const [groups, setGroups] = useState(initialGroups);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(initialGroups[0]?.id ?? null);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ norad_id: "", name: "", category: "", notes: "" });
+  const [form, setForm] = useState({ norad_id: "", category: "", notes: "" });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const supabase = createClient();
@@ -69,27 +69,54 @@ export default function SatellitesClient({ groups: initialGroups }: Props) {
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     if (!selectedGroup) return;
+    const noradId = Number(form.norad_id.trim());
+    if (!Number.isInteger(noradId) || noradId <= 0) {
+      setError("Enter a valid NORAD ID (a positive whole number).");
+      return;
+    }
+    if (satellites.some((s) => s.norad_id === noradId)) {
+      setError("That satellite is already tracked by this group.");
+      return;
+    }
     setSaving(true);
     setError(null);
-    const { data, error: err } = await supabase
-      .from("tracked_satellites")
-      .insert({
-        group_id: selectedGroup.id,
-        norad_id: parseInt(form.norad_id),
-        name: form.name,
-        category: form.category || null,
-        notes: form.notes || null,
-      })
-      .select()
-      .single();
-    if (err) {
-      setError(err.message);
-    } else {
-      updateGroupSatellites(selectedGroup.id, [...satellites, data]);
-      setForm({ norad_id: "", name: "", category: "", notes: "" });
-      setShowForm(false);
+
+    try {
+      // Look up the satellite name automatically from its NORAD ID.
+      const lookup = await fetch(`/api/satellite-lookup?norad_id=${noradId}`);
+      const lookupData = await lookup.json().catch(() => ({}));
+      if (!lookup.ok) {
+        setError(lookupData.error ?? "Could not look up that NORAD ID.");
+        return;
+      }
+
+      const { data, error: err } = await supabase
+        .from("tracked_satellites")
+        .insert({
+          group_id: selectedGroup.id,
+          norad_id: noradId,
+          name: lookupData.name,
+          category: form.category || null,
+          notes: form.notes || null,
+        })
+        .select()
+        .single();
+      if (err) {
+        setError(
+          err.code === "23505"
+            ? "That satellite is already tracked by this group."
+            : err.message
+        );
+      } else {
+        updateGroupSatellites(selectedGroup.id, [...satellites, data]);
+        setForm({ norad_id: "", category: "", notes: "" });
+        setShowForm(false);
+      }
+    } catch {
+      setError("Something went wrong looking up that satellite. Please try again.");
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   }
 
   async function deleteSatellite(id: string) {
@@ -162,12 +189,15 @@ export default function SatellitesClient({ groups: initialGroups }: Props) {
       {/* Custom satellite form */}
       {showForm && (
         <div className="mb-6 p-5 rounded-xl bg-slate-900 border border-slate-700">
-          <h2 className="font-semibold text-white mb-4">Add satellite by NORAD ID</h2>
+          <h2 className="font-semibold text-white mb-1">Add satellite by NORAD ID</h2>
+          <p className="text-xs text-slate-500 mb-4">
+            Just enter the NORAD ID — we&apos;ll look up the satellite name for you.
+          </p>
           <form onSubmit={handleSave} className="space-y-3">
             {error && (
               <div className="p-3 rounded-lg bg-red-900/30 border border-red-800 text-red-300 text-sm">{error}</div>
             )}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="block text-xs text-slate-400 uppercase mb-1">NORAD ID</label>
                 <input
@@ -178,16 +208,7 @@ export default function SatellitesClient({ groups: initialGroups }: Props) {
                 />
               </div>
               <div>
-                <label className="block text-xs text-slate-400 uppercase mb-1">Name</label>
-                <input
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  required placeholder="ISS (ZARYA)"
-                  className="w-full bg-slate-800 border border-slate-700 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-space-500"
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-400 uppercase mb-1">Category</label>
+                <label className="block text-xs text-slate-400 uppercase mb-1">Category (optional)</label>
                 <input
                   value={form.category}
                   onChange={(e) => setForm({ ...form, category: e.target.value })}
@@ -208,7 +229,7 @@ export default function SatellitesClient({ groups: initialGroups }: Props) {
             <div className="flex gap-2">
               <button type="submit" disabled={saving}
                 className="px-4 py-2 rounded-lg bg-space-600 hover:bg-space-700 text-white text-sm font-medium disabled:opacity-60 transition-colors">
-                {saving ? "Saving…" : "Add satellite"}
+                {saving ? "Looking up…" : "Add satellite"}
               </button>
               <button type="button" onClick={() => setShowForm(false)}
                 className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm transition-colors">
