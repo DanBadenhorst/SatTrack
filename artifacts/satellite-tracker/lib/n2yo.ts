@@ -18,6 +18,9 @@ export interface Pass {
   // passes omit them.
   mag?: number;
   duration?: number;
+  // Cloud cover percent (0–100) at the pass start, from Open-Meteo. Enriched in
+  // the passes route; undefined when outside the forecast horizon or on failure.
+  cloudCover?: number;
 }
 
 export interface PassesResponse {

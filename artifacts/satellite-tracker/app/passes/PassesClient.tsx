@@ -12,7 +12,17 @@ interface Pass {
   startAz: number; startAzCompass: string; startEl: number; startUTC: number;
   maxAz: number; maxAzCompass: string; maxEl: number; maxUTC: number;
   endAz: number; endAzCompass: string; endEl: number; endUTC: number;
-  mag?: number; duration?: number;
+  mag?: number; duration?: number; cloudCover?: number;
+}
+
+// Sky condition from cloud cover percent (Open-Meteo). Drives the visibility hint.
+function skyCondition(cloud?: number) {
+  if (cloud == null) return null;
+  if (cloud < 25)
+    return { icon: "☀️", label: "Clear sky", cls: "bg-amber-900/30 border-amber-700 text-amber-300" };
+  if (cloud <= 60)
+    return { icon: "⛅", label: "Partly cloudy", cls: "bg-sky-900/30 border-sky-700 text-sky-300" };
+  return { icon: "☁️", label: "Overcast", cls: "bg-slate-800 border-slate-600 text-slate-400" };
 }
 
 type PassMode = "visible" | "all";
@@ -462,6 +472,14 @@ export default function PassesClient({
                           })()}
                           {pass.maxEl >= 60 && <span className="text-xs px-2 py-0.5 rounded-full bg-green-900/40 border border-green-700 text-green-300">Excellent</span>}
                           {pass.maxEl >= 30 && pass.maxEl < 60 && <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-900/40 border border-yellow-700 text-yellow-300">Good</span>}
+                          {(() => {
+                            const sky = skyCondition(pass.cloudCover);
+                            return sky ? (
+                              <span className={`text-xs px-2 py-0.5 rounded-full border ${sky.cls}`} title={`${Math.round(pass.cloudCover!)}% cloud cover at pass time`}>
+                                {sky.icon} {sky.label}
+                              </span>
+                            ) : null;
+                          })()}
                         </div>
                         <div className="flex gap-4 text-xs text-slate-400">
                           <span>AOS: {pass.startAz.toFixed(0)}° {pass.startAzCompass}</span>
