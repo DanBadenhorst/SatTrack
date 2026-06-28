@@ -22,17 +22,21 @@ export async function POST(request: NextRequest) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await request.json();
-  const { satellite_norad_id, group_id, min_elevation = 10, pass_mode = "visible", notify_minutes_before = 15, email } = body;
+  const { satellite_norad_id, group_id, min_elevation = 10, pass_mode = "visible", notify_minutes_before = 15, days_of_week = [], timezone = null, email } = body;
 
   if (!satellite_norad_id || !group_id || !email) {
     return NextResponse.json({ error: "satellite_norad_id, group_id, and email required" }, { status: 400 });
   }
 
   const mode = pass_mode === "all" ? "all" : "visible";
+  // Keep only valid weekday indices (0=Sun … 6=Sat); empty = every day.
+  const days = Array.isArray(days_of_week)
+    ? [...new Set(days_of_week.filter((d: unknown) => Number.isInteger(d) && (d as number) >= 0 && (d as number) <= 6))].sort((a, b) => (a as number) - (b as number))
+    : [];
 
   const { data, error } = await supabase
     .from("alert_subscriptions")
-    .insert({ user_id: user.id, satellite_norad_id, group_id, min_elevation, pass_mode: mode, notify_minutes_before, email })
+    .insert({ user_id: user.id, satellite_norad_id, group_id, min_elevation, pass_mode: mode, notify_minutes_before, days_of_week: days, timezone, email })
     .select()
     .single();
 

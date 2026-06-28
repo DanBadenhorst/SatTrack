@@ -7,6 +7,23 @@ import { sendPassAlert, isSendOk, AlertPayload } from "@/lib/resend";
 // It checks all active subscriptions and sends alerts for passes starting
 // within the notification window.
 
+// Returns the weekday (0=Sun … 6=Sat) of a UTC epoch evaluated in the given
+// IANA time zone, so day-of-week alert filters match the user's local calendar.
+// Falls back to UTC when the zone is missing or invalid.
+function weekdayInTz(epochSec: number, tz: string | null | undefined): number {
+  const date = new Date(epochSec * 1000);
+  try {
+    const short = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz || "UTC",
+      weekday: "short",
+    }).format(date);
+    const idx = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(short);
+    return idx === -1 ? date.getUTCDay() : idx;
+  } catch {
+    return date.getUTCDay();
+  }
+}
+
 export async function POST(request: NextRequest) {
   // Simple auth: verify a shared secret in production
   const authHeader = request.headers.get("authorization");
@@ -57,6 +74,13 @@ export async function POST(request: NextRequest) {
 
         // Only alert for passes starting within the notification window
         if (minutesUntilPass > 0 && minutesUntilPass <= sub.notify_minutes_before) {
+          // Honor the per-weekday filter (empty/missing = every day), evaluated
+          // in the subscriber's local time zone.
+          const allowedDays: number[] = Array.isArray(sub.days_of_week) ? sub.days_of_week : [];
+          if (allowedDays.length > 0 && !allowedDays.includes(weekdayInTz(pass.startUTC, sub.timezone))) {
+            continue;
+          }
+
           // Skip passes we've already sent an alert for
           const { data: existing } = await supabase
             .from("sent_alerts")

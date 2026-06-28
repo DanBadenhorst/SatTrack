@@ -52,6 +52,10 @@ CREATE TABLE IF NOT EXISTS alert_subscriptions (
   min_elevation INTEGER NOT NULL DEFAULT 10,
   pass_mode TEXT NOT NULL DEFAULT 'visible' CHECK (pass_mode IN ('visible', 'all')),
   notify_minutes_before INTEGER NOT NULL DEFAULT 15,
+  -- Weekdays the alert may fire on, as JS getDay() indices (0=Sun … 6=Sat).
+  -- Empty array = every day. Evaluated in `timezone` (observer's local zone).
+  days_of_week SMALLINT[] NOT NULL DEFAULT '{}',
+  timezone TEXT,
   email TEXT NOT NULL,
   active BOOLEAN NOT NULL DEFAULT true,
   created_at TIMESTAMPTZ DEFAULT now() NOT NULL,

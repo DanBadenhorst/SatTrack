@@ -55,6 +55,8 @@ artifacts/satellite-tracker/
 
 Tables: `locations`, `tracked_satellites`, `groups`, `group_members`, `alert_subscriptions`, `sent_alerts`, `group_messages`, `group_feed_subscriptions` — all with RLS enabled. Schema is already applied to the live Supabase project.
 
+**Pending migration:** `supabase-migration-alert-days.sql` adds `days_of_week SMALLINT[]` (JS getDay indices, empty = every day) and `timezone TEXT` to `alert_subscriptions` for per-weekday alert filtering. Run it once in the Supabase SQL editor — until then, creating an alert will error (the Set Alert modal surfaces the failure).
+
 ## Architecture decisions
 
 - **Next.js App Router only** — no Vite, no separate React SPA. All pages are RSC by default; client components are colocated as `*Client.tsx`.
@@ -69,7 +71,7 @@ Tables: `locations`, `tracked_satellites`, `groups`, `group_members`, `alert_sub
 - **Satellites** — track satellites by NORAD ID with quick-add for popular ones (ISS, ISS Ham, NOAA series, Hubble, weather sats)
 - **Passes** — get pass predictions for any tracked satellite from any saved location; filter by horizon elevation and look-ahead days; live Leaflet map shows real-time satellite position
 - **Groups** — create groups (each with one observing location); discover and join any group directly from a Leaflet map (groups shown as dots with a 100 km coverage ring) or the list below it; leave anytime. (Future: request-to-join with admin approval.) Invite codes are still generated but no longer required to join.
-- **Alerts** — subscribe to email alerts for any satellite/location combo; alerts fire within a configurable window before the pass starts
+- **Alerts** — clicking "Set alert" on a satellite opens a confirm modal (pre-filled from the page's min-elevation/pass-type filters) where you adjust min elevation, pass type, notify-before lead time, and which weekdays the alert may fire on (Mon–Sun); confirming writes the subscription. Alerts fire within the chosen window before the pass starts, and only on the selected weekdays (evaluated in the subscriber's local time zone, stored at creation time).
 
 ## User preferences
 

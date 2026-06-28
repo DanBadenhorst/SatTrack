@@ -17,6 +17,18 @@ interface Pass {
 
 type PassMode = "visible" | "all";
 
+// Displayed Monday-first; values are JS getDay() indices (0=Sun … 6=Sat).
+const WEEKDAYS: { label: string; value: number }[] = [
+  { label: "Mon", value: 1 },
+  { label: "Tue", value: 2 },
+  { label: "Wed", value: 3 },
+  { label: "Thu", value: 4 },
+  { label: "Fri", value: 5 },
+  { label: "Sat", value: 6 },
+  { label: "Sun", value: 0 },
+];
+const dayLabel = (v: number) => WEEKDAYS.find((d) => d.value === v)?.label ?? "";
+
 interface PassResult {
   satellite: TrackedSatellite;
   passes: Pass[];
@@ -81,6 +93,16 @@ export default function PassesClient({
   const [alerts, setAlerts] = useState(initialAlerts);
   const [showMap, setShowMap] = useState(false);
   const [mapSat, setMapSat] = useState<TrackedSatellite | null>(null);
+
+  // "Set alert" modal — pre-filled from the page's current filter settings.
+  const [alertModalSat, setAlertModalSat] = useState<TrackedSatellite | null>(null);
+  const [aMinEl, setAMinEl] = useState(10);
+  const [aMode, setAMode] = useState<PassMode>("visible");
+  const [aNotify, setANotify] = useState(15);
+  const [aDays, setADays] = useState<Set<number>>(new Set([0, 1, 2, 3, 4, 5, 6]));
+  const [savingAlert, setSavingAlert] = useState(false);
+  const [alertError, setAlertError] = useState<string | null>(null);
+
   const supabase = createClient();
 
   const selectedSatellites = satellites.filter((s) => selectedSatIds.has(s.id));
@@ -125,27 +147,66 @@ export default function PassesClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function toggleAlert(sat: TrackedSatellite) {
+  // Opens the confirm-alert modal, seeding it with the current page filters.
+  function openAlertModal(sat: TrackedSatellite) {
+    setAMinEl(minEl);
+    setAMode(mode);
+    setANotify(15);
+    setADays(new Set([0, 1, 2, 3, 4, 5, 6]));
+    setAlertError(null);
+    setAlertModalSat(sat);
+  }
+
+  function toggleAlertDay(v: number) {
+    setADays((prev) => {
+      const next = new Set(prev);
+      if (next.has(v)) next.delete(v);
+      else next.add(v);
+      return next;
+    });
+  }
+
+  async function confirmAlert() {
+    if (!alertModalSat || !selectedGroup || aDays.size === 0) return;
+    setSavingAlert(true);
+    setAlertError(null);
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const daysArr = [...aDays].sort((a, b) => a - b);
+    const { data, error } = await supabase.from("alert_subscriptions").insert({
+      user_id: userId,
+      satellite_norad_id: alertModalSat.norad_id,
+      group_id: selectedGroup.id,
+      min_elevation: aMinEl,
+      pass_mode: aMode,
+      notify_minutes_before: aNotify,
+      days_of_week: daysArr,
+      timezone: tz,
+      email: userEmail,
+      active: true,
+    }).select().single();
+    setSavingAlert(false);
+    if (error) {
+      // Keep the modal open so the user can retry; surface the reason (e.g. a
+      // duplicate subscription, or the day/timezone columns not yet migrated).
+      setAlertError(
+        error.code === "23505"
+          ? "You already have an alert for this satellite in this group."
+          : error.message || "Could not save the alert. Please try again."
+      );
+      return;
+    }
+    if (data) setAlerts([...alerts, data]);
+    setAlertModalSat(null);
+  }
+
+  async function removeAlert(sat: TrackedSatellite) {
     if (!selectedGroup) return;
     const existing = alerts.find(
       (a) => a.satellite_norad_id === sat.norad_id && a.group_id === selectedGroup.id
     );
-    if (existing) {
-      await supabase.from("alert_subscriptions").delete().eq("id", existing.id);
-      setAlerts(alerts.filter((a) => a.id !== existing.id));
-    } else {
-      const { data } = await supabase.from("alert_subscriptions").insert({
-        user_id: userId,
-        satellite_norad_id: sat.norad_id,
-        group_id: selectedGroup.id,
-        min_elevation: minEl,
-        pass_mode: mode,
-        notify_minutes_before: 15,
-        email: userEmail,
-        active: true,
-      }).select().single();
-      if (data) setAlerts([...alerts, data]);
-    }
+    if (!existing) return;
+    await supabase.from("alert_subscriptions").delete().eq("id", existing.id);
+    setAlerts(alerts.filter((a) => a.id !== existing.id));
   }
 
   function hasAlert(sat: TrackedSatellite) {
@@ -358,7 +419,7 @@ export default function PassesClient({
                     Live map
                   </button>
                   <button
-                    onClick={() => toggleAlert(result.satellite)}
+                    onClick={() => hasAlert(result.satellite) ? removeAlert(result.satellite) : openAlertModal(result.satellite)}
                     className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs transition-colors ${
                       hasAlert(result.satellite)
                         ? "bg-orange-900/30 border border-orange-700 text-orange-300"
@@ -417,6 +478,101 @@ export default function PassesClient({
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Set-alert modal — confirm/adjust settings before writing the subscription */}
+      {alertModalSat && selectedGroup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-md bg-slate-900 rounded-2xl border border-slate-700 overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-slate-800">
+              <div>
+                <h3 className="font-semibold text-white">Set alert — {alertModalSat.name}</h3>
+                <p className="text-xs text-slate-500 mt-0.5">{selectedGroup.location_name ?? selectedGroup.name}</p>
+              </div>
+              <button onClick={() => setAlertModalSat(null)} className="text-slate-400 hover:text-white">✕</button>
+            </div>
+
+            <div className="p-5 space-y-5">
+              {/* Min elevation */}
+              <div>
+                <label className="block text-xs text-slate-400 uppercase mb-2">Min elevation: {aMinEl}°</label>
+                <input type="range" min={5} max={60} step={5} value={aMinEl} onChange={(e) => setAMinEl(+e.target.value)}
+                  className="w-full accent-space-500" />
+              </div>
+
+              {/* Pass type */}
+              <div>
+                <label className="block text-xs text-slate-400 uppercase mb-2">Pass type</label>
+                <div className="flex gap-2">
+                  {([
+                    { key: "visible", label: "Visible only" },
+                    { key: "all", label: "All (radio)" },
+                  ] as { key: PassMode; label: string }[]).map((m) => (
+                    <button key={m.key} onClick={() => setAMode(m.key)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${aMode === m.key ? "bg-space-700 text-space-200" : "bg-slate-800 text-slate-400 hover:text-slate-200"}`}>
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-1.5 text-xs text-slate-500">
+                  {aMode === "visible"
+                    ? "Only passes visible to the naked eye (satellite sunlit, sky dark)."
+                    : `All passes reaching ${aMinEl}°+, day or night — for radio work.`}
+                </p>
+              </div>
+
+              {/* Notify before */}
+              <div>
+                <label className="block text-xs text-slate-400 uppercase mb-2">Notify before pass</label>
+                <div className="flex gap-2 flex-wrap">
+                  {[5, 15, 30, 60].map((n) => (
+                    <button key={n} onClick={() => setANotify(n)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${aNotify === n ? "bg-space-700 text-space-200" : "bg-slate-800 text-slate-400 hover:text-slate-200"}`}>
+                      {n < 60 ? `${n} min` : "1 hr"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Days of week */}
+              <div>
+                <label className="block text-xs text-slate-400 uppercase mb-2">Days of week</label>
+                <div className="flex gap-1.5 flex-wrap">
+                  {WEEKDAYS.map((d) => (
+                    <button key={d.value} onClick={() => toggleAlertDay(d.value)}
+                      className={`w-11 py-1.5 rounded-lg text-xs font-medium transition-colors ${aDays.has(d.value) ? "bg-space-700 text-space-200" : "bg-slate-800 text-slate-500 hover:text-slate-300"}`}>
+                      {d.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-1.5 text-xs text-slate-500">
+                  {aDays.size === 0
+                    ? "Select at least one day."
+                    : aDays.size === 7
+                    ? "Alerts on every day."
+                    : `Alerts only on ${[...aDays].sort((a, b) => a - b).map(dayLabel).join(", ")}.`}
+                </p>
+              </div>
+            </div>
+
+            {alertError && (
+              <div className="mx-5 mb-1 p-3 rounded-lg bg-red-900/20 border border-red-800 text-red-300 text-xs">
+                {alertError}
+              </div>
+            )}
+
+            <div className="flex gap-2 p-4 border-t border-slate-800">
+              <button onClick={() => setAlertModalSat(null)}
+                className="flex-1 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-medium transition-colors">
+                Cancel
+              </button>
+              <button onClick={confirmAlert} disabled={savingAlert || aDays.size === 0}
+                className="flex-1 py-2 rounded-lg bg-space-600 hover:bg-space-700 disabled:opacity-50 text-white text-sm font-semibold transition-colors">
+                {savingAlert ? "Saving…" : "Confirm alert"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
