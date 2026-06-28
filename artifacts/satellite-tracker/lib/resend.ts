@@ -217,6 +217,9 @@ export interface GroupMessagePayload {
   authorName: string;
   body: string;
   postedAt: string;
+  // Absolute URL to the group's chat in the web app (opens the dashboard feed
+  // with this group pre-selected). Omitted only if the origin can't be derived.
+  chatUrl?: string;
 }
 
 export async function sendGroupMessageEmail(payload: GroupMessagePayload) {
@@ -254,8 +257,15 @@ export async function sendGroupMessageEmail(payload: GroupMessagePayload) {
         <h1>${payload.groupName}</h1>
         <p class="subtitle">${payload.authorName} · ${postedTime}</p>
         <div class="message">${safeBody}</div>
+        ${
+          payload.chatUrl
+            ? `<div style="text-align:center;margin-top:24px;">
+          <a href="${payload.chatUrl}" style="display:inline-block;background:#2563eb;color:#ffffff;font-size:14px;font-weight:600;padding:12px 24px;border-radius:8px;text-decoration:none;">Open chat &amp; reply</a>
+        </div>`
+            : ""
+        }
         <div class="footer">
-          <p>You're receiving this because you enabled feed notifications for this group on <a href="#">SatTrack</a>.</p>
+          <p>You're receiving this because you enabled feed notifications for this group on SatTrack.</p>
         </div>
       </div>
     </body>

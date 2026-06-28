@@ -38,7 +38,7 @@ artifacts/satellite-tracker/
 │       ├── geocode/          # Address → lat/lon
 │       ├── alerts/           # Alert pipeline (cron endpoint)
 │       ├── alerts/subscriptions/ # CRUD for alert subscriptions
-│       └── groups/messages/  # Group feed: post message + email subscribed members
+│       └── groups/messages/  # Group feed: post message + email subscribed members (email has an "Open chat & reply" deep link to /dashboard?group=<id>)
 ├── lib/
 │   ├── supabase/             # server.ts, client.ts, middleware.ts
 │   ├── n2yo.ts               # N2YO API wrapper

@@ -40,6 +40,16 @@ export default function GroupFeed({ groups, userId, userEmail }: Props) {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
   const [selectedId, setSelectedId] = useState(groups[0]?.id ?? "");
+
+  // Pre-select the group from a ?group=<id> deep link (e.g. the "Open chat"
+  // button in feed notification emails). Runs once on mount.
+  useEffect(() => {
+    const param = new URLSearchParams(window.location.search).get("group");
+    if (param && groups.some((g) => g.id === param)) {
+      setSelectedId(param);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [messages, setMessages] = useState<GroupMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [draft, setDraft] = useState("");

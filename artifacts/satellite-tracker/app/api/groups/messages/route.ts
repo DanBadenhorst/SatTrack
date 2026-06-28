@@ -72,12 +72,16 @@ export async function POST(request: NextRequest) {
     if (recipients.length > 0) {
       const groupName = group?.name ?? "Your group";
       const authorName = nameFromEmail(user.email ?? "A member");
+      // Deep link back to the dashboard feed with this group pre-selected so the
+      // recipient can continue the conversation in one click.
+      const chatUrl = `${request.nextUrl.origin}/dashboard?group=${encodeURIComponent(groupId)}`;
       const payloads: GroupMessagePayload[] = recipients.map((s) => ({
         toEmail: s.email,
         groupName,
         authorName,
         body: text,
         postedAt: message.created_at,
+        chatUrl,
       }));
       await sendGroupMessageEmails(payloads);
     }
