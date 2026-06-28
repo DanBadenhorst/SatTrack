@@ -92,6 +92,7 @@ export async function POST(request: NextRequest) {
           groupName: group.name,
           passes,
           rangeLabel: `next ${lookAhead} day${lookAhead === 1 ? "" : "s"}`,
+          timeZone: timezone,
         });
         if (!isSendOk(result)) {
           console.error("[alerts] immediate digest rejected by API:", (result as { error: unknown }).error);

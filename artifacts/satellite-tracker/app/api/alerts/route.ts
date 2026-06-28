@@ -175,6 +175,7 @@ export async function POST(request: NextRequest) {
         groupName: group.name,
         passes,
         rangeLabel: `next ${lookAhead} day${lookAhead === 1 ? "" : "s"}`,
+        timeZone: sub.timezone,
       });
       if (!isSendOk(result)) {
         // Release the claim so a later run the same day can retry the send.

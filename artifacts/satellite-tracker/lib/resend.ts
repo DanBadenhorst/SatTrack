@@ -107,6 +107,9 @@ export interface PassDigestPayload {
   passes: Pass[];
   // Human-readable description of the look-ahead window, e.g. "next 3 days".
   rangeLabel: string;
+  // IANA time zone to render pass times in (the subscriber's local zone, stored
+  // at subscription creation). Falls back to the server zone when absent.
+  timeZone?: string | null;
 }
 
 // Compact sky-condition cell from cloud cover percent (Open-Meteo): clear <25%,
@@ -121,8 +124,23 @@ function skyCell(cloud?: number): string {
 // list the user sees after clicking "Fetch Passes", already filtered by the
 // alert's min-elevation and pass-type settings.
 export async function sendPassDigest(payload: PassDigestPayload) {
+  // Validate the IANA zone once; a malformed value would otherwise throw on
+  // every row and fail the whole send. Fall back to the server zone.
+  let tz: string | undefined;
+  if (payload.timeZone) {
+    try {
+      new Intl.DateTimeFormat("en-US", { timeZone: payload.timeZone });
+      tz = payload.timeZone;
+    } catch {
+      console.error("[resend] invalid timeZone, using server zone:", payload.timeZone);
+    }
+  }
   const fmt = (epoch: number) =>
-    new Date(epoch * 1000).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
+    new Date(epoch * 1000).toLocaleString("en-US", {
+      dateStyle: "medium",
+      timeStyle: "short",
+      ...(tz ? { timeZone: tz } : {}),
+    });
 
   const rows = payload.passes
     .map(
