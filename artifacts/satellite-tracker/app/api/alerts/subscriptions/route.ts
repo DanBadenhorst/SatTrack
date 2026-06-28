@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getPasses, getRadioPasses } from "@/lib/n2yo";
+import { sendPassDigest, isSendOk } from "@/lib/resend";
 
 export async function GET() {
   const supabase = await createClient();
@@ -22,7 +24,19 @@ export async function POST(request: NextRequest) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await request.json();
-  const { satellite_norad_id, group_id, min_elevation = 10, pass_mode = "visible", notify_minutes_before = 15, days_of_week = [], timezone = null, email } = body;
+  const {
+    satellite_norad_id,
+    group_id,
+    min_elevation = 10,
+    pass_mode = "visible",
+    days_of_week = [],
+    timezone = null,
+    email,
+    satellite_name,
+    // Look-ahead (days) for the immediate confirmation email, mirroring the
+    // page's current filter so it matches what the user just saw on screen.
+    days = 3,
+  } = body;
 
   if (!satellite_norad_id || !group_id || !email) {
     return NextResponse.json({ error: "satellite_norad_id, group_id, and email required" }, { status: 400 });
@@ -30,14 +44,14 @@ export async function POST(request: NextRequest) {
 
   const mode = pass_mode === "all" ? "all" : "visible";
   // Keep only valid weekday indices (0=Sun … 6=Sat); empty = every day.
-  const days = Array.isArray(days_of_week)
+  const dayList = Array.isArray(days_of_week)
     ? [...new Set(days_of_week.filter((d: unknown) => Number.isInteger(d) && (d as number) >= 0 && (d as number) <= 6))].sort((a, b) => (a as number) - (b as number))
     : [];
 
   const { data, error } = await supabase
     .from("alert_subscriptions")
-    .insert({ user_id: user.id, satellite_norad_id, group_id, min_elevation, pass_mode: mode, notify_minutes_before, days_of_week: days, timezone, email })
-    .select()
+    .insert({ user_id: user.id, satellite_norad_id, group_id, min_elevation, pass_mode: mode, days_of_week: dayList, timezone, email })
+    .select("*, groups(name, location_name, latitude, longitude, altitude)")
     .single();
 
   if (error) {
@@ -46,5 +60,35 @@ export async function POST(request: NextRequest) {
     }
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  // Fire an immediate confirmation digest with the current filter results. Email
+  // failure must not fail subscription creation, so it's best-effort + logged.
+  const group = (data as Record<string, unknown>).groups as
+    | { name: string; location_name: string | null; latitude: number | null; longitude: number | null; altitude: number | null }
+    | null;
+  if (group && group.latitude != null && group.longitude != null) {
+    try {
+      const lookAhead = Number.isInteger(days) && days > 0 && days <= 10 ? days : 3;
+      const fetchPasses = mode === "all" ? getRadioPasses : getPasses;
+      const passData = await fetchPasses(satellite_norad_id, group.latitude, group.longitude, group.altitude ?? 0, lookAhead, min_elevation);
+      const passes = passData.passes ?? [];
+      if (passes.length > 0) {
+        const result = await sendPassDigest({
+          toEmail: email,
+          satelliteName: satellite_name || `NORAD ${satellite_norad_id}`,
+          locationName: group.location_name ?? group.name,
+          groupName: group.name,
+          passes,
+          rangeLabel: `next ${lookAhead} day${lookAhead === 1 ? "" : "s"}`,
+        });
+        if (!isSendOk(result)) {
+          console.error("[alerts] immediate digest rejected by API:", (result as { error: unknown }).error);
+        }
+      }
+    } catch (e) {
+      console.error("[alerts] immediate digest failed:", e);
+    }
+  }
+
   return NextResponse.json(data, { status: 201 });
 }

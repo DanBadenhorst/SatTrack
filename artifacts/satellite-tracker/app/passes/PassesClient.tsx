@@ -98,7 +98,6 @@ export default function PassesClient({
   const [alertModalSat, setAlertModalSat] = useState<TrackedSatellite | null>(null);
   const [aMinEl, setAMinEl] = useState(10);
   const [aMode, setAMode] = useState<PassMode>("visible");
-  const [aNotify, setANotify] = useState(15);
   const [aDays, setADays] = useState<Set<number>>(new Set([0, 1, 2, 3, 4, 5, 6]));
   const [savingAlert, setSavingAlert] = useState(false);
   const [alertError, setAlertError] = useState<string | null>(null);
@@ -151,7 +150,6 @@ export default function PassesClient({
   function openAlertModal(sat: TrackedSatellite) {
     setAMinEl(minEl);
     setAMode(mode);
-    setANotify(15);
     setADays(new Set([0, 1, 2, 3, 4, 5, 6]));
     setAlertError(null);
     setAlertModalSat(sat);
@@ -172,29 +170,35 @@ export default function PassesClient({
     setAlertError(null);
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
     const daysArr = [...aDays].sort((a, b) => a - b);
-    const { data, error } = await supabase.from("alert_subscriptions").insert({
-      user_id: userId,
-      satellite_norad_id: alertModalSat.norad_id,
-      group_id: selectedGroup.id,
-      min_elevation: aMinEl,
-      pass_mode: aMode,
-      notify_minutes_before: aNotify,
-      days_of_week: daysArr,
-      timezone: tz,
-      email: userEmail,
-      active: true,
-    }).select().single();
+    // Go through the server route so it can send the immediate confirmation
+    // digest (N2YO + Resend are server-side only).
+    const res = await fetch("/api/alerts/subscriptions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        satellite_norad_id: alertModalSat.norad_id,
+        satellite_name: alertModalSat.name,
+        group_id: selectedGroup.id,
+        min_elevation: aMinEl,
+        pass_mode: aMode,
+        days_of_week: daysArr,
+        timezone: tz,
+        email: userEmail,
+        days, // current page look-ahead, so the email matches what's on screen
+      }),
+    });
     setSavingAlert(false);
-    if (error) {
-      // Keep the modal open so the user can retry; surface the reason (e.g. a
-      // duplicate subscription, or the day/timezone columns not yet migrated).
+    if (!res.ok) {
+      // Keep the modal open so the user can retry; surface the reason.
+      const msg = await res.json().catch(() => null);
       setAlertError(
-        error.code === "23505"
+        res.status === 409
           ? "You already have an alert for this satellite in this group."
-          : error.message || "Could not save the alert. Please try again."
+          : msg?.error || "Could not save the alert. Please try again."
       );
       return;
     }
+    const data = await res.json();
     if (data) setAlerts([...alerts, data]);
     setAlertModalSat(null);
   }
@@ -520,19 +524,6 @@ export default function PassesClient({
                     ? "Only passes visible to the naked eye (satellite sunlit, sky dark)."
                     : `All passes reaching ${aMinEl}°+, day or night — for radio work.`}
                 </p>
-              </div>
-
-              {/* Notify before */}
-              <div>
-                <label className="block text-xs text-slate-400 uppercase mb-2">Notify before pass</label>
-                <div className="flex gap-2 flex-wrap">
-                  {[5, 15, 30, 60].map((n) => (
-                    <button key={n} onClick={() => setANotify(n)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${aNotify === n ? "bg-space-700 text-space-200" : "bg-slate-800 text-slate-400 hover:text-slate-200"}`}>
-                      {n < 60 ? `${n} min` : "1 hr"}
-                    </button>
-                  ))}
-                </div>
               </div>
 
               {/* Days of week */}

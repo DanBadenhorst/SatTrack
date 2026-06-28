@@ -1,27 +1,59 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getPasses, getRadioPasses } from "@/lib/n2yo";
-import { sendPassAlert, isSendOk, AlertPayload } from "@/lib/resend";
+import { sendPassDigest, isSendOk } from "@/lib/resend";
 
-// This route is called by a cron job (or manually) to send pending alerts
-// It checks all active subscriptions and sends alerts for passes starting
-// within the notification window.
+// This route is called by a cron job (or manually) to send the daily pass digest.
+// For each active subscription it sends, once per local day at/after 13:00 in the
+// subscriber's local time zone on a selected weekday, an email listing the
+// satellite's upcoming passes (filtered by the alert's min-elevation/pass-type).
+// The cron should run at least hourly so 13:00 is matched across time zones and
+// transient failures can be retried later the same day.
 
-// Returns the weekday (0=Sun … 6=Sat) of a UTC epoch evaluated in the given
-// IANA time zone, so day-of-week alert filters match the user's local calendar.
-// Falls back to UTC when the zone is missing or invalid.
-function weekdayInTz(epochSec: number, tz: string | null | undefined): number {
-  const date = new Date(epochSec * 1000);
+const DIGEST_HOUR = 13; // earliest local hour the digest may go out (1pm)
+const LOOK_AHEAD_DAYS = 1; // scheduled digest covers the next 24 hours
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+// Local-time fields (year/month/day/hour/weekday) of a UTC date in the given IANA
+// zone, built deterministically with formatToParts to avoid locale-format
+// ambiguity. Falls back to UTC if the zone is missing or invalid.
+function localParts(date: Date, tz: string | null | undefined) {
   try {
-    const short = new Intl.DateTimeFormat("en-US", {
+    const parts = new Intl.DateTimeFormat("en-US", {
       timeZone: tz || "UTC",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      hour12: false,
       weekday: "short",
-    }).format(date);
-    const idx = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(short);
-    return idx === -1 ? date.getUTCDay() : idx;
+    }).formatToParts(date);
+    const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
+    const weekday = WEEKDAYS.indexOf(get("weekday"));
+    const hour = parseInt(get("hour"), 10) % 24;
+    return {
+      year: get("year"),
+      month: get("month"),
+      day: get("day"),
+      hour: Number.isNaN(hour) ? date.getUTCHours() : hour,
+      weekday: weekday === -1 ? date.getUTCDay() : weekday,
+    };
   } catch {
-    return date.getUTCDay();
+    return {
+      year: String(date.getUTCFullYear()),
+      month: String(date.getUTCMonth() + 1).padStart(2, "0"),
+      day: String(date.getUTCDate()).padStart(2, "0"),
+      hour: date.getUTCHours(),
+      weekday: date.getUTCDay(),
+    };
   }
+}
+
+// Stable per-local-day integer marker (epoch seconds of that local date at 00:00
+// UTC). Used as the sent_alerts dedupe key — the table's
+// UNIQUE(subscription_id, pass_start_utc) makes claiming a marker atomic.
+function dateMarker(p: { year: string; month: string; day: string }): number {
+  return Math.floor(Date.parse(`${p.year}-${p.month}-${p.day}T00:00:00Z`) / 1000);
 }
 
 export async function POST(request: NextRequest) {
@@ -34,7 +66,6 @@ export async function POST(request: NextRequest) {
 
   const supabase = await createAdminClient();
 
-  // Get all active subscriptions with the group's observing location
   const { data: subs, error } = await supabase
     .from("alert_subscriptions")
     .select(`
@@ -47,17 +78,49 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Failed to fetch subscriptions" }, { status: 500 });
   }
 
-  type Candidate = {
-    record: { subscription_id: string; satellite_norad_id: number; pass_start_utc: number };
-    payload: AlertPayload;
-  };
-  const candidates: Candidate[] = [];
-  const now = Math.floor(Date.now() / 1000);
+  const now = new Date();
+  let sent = 0;
+  let failed = 0;
+  let skipped = 0;
 
   for (const sub of subs) {
-    const group = (sub as Record<string, unknown>).groups as { name: string; location_name: string | null; latitude: number | null; longitude: number | null; altitude: number | null } | null;
-    if (!group || group.latitude == null || group.longitude == null) continue;
+    const group = (sub as Record<string, unknown>).groups as
+      | { name: string; location_name: string | null; latitude: number | null; longitude: number | null; altitude: number | null }
+      | null;
+    if (!group || group.latitude == null || group.longitude == null) {
+      skipped++;
+      continue;
+    }
 
+    const p = localParts(now, sub.timezone);
+
+    // Only fire at/after 13:00 local (so an hourly cron can recover from earlier
+    // failures the same day), and only on a selected weekday (empty = every day).
+    if (p.hour < DIGEST_HOUR) {
+      skipped++;
+      continue;
+    }
+    const allowedDays: number[] = Array.isArray(sub.days_of_week) ? sub.days_of_week : [];
+    if (allowedDays.length > 0 && !allowedDays.includes(p.weekday)) {
+      skipped++;
+      continue;
+    }
+
+    const marker = dateMarker(p);
+
+    // Skip if today's digest was already sent (fast path before any N2YO call).
+    const { data: already } = await supabase
+      .from("sent_alerts")
+      .select("id")
+      .eq("subscription_id", sub.id)
+      .eq("pass_start_utc", marker)
+      .maybeSingle();
+    if (already) {
+      skipped++;
+      continue;
+    }
+
+    let passes;
     try {
       const fetchPasses = sub.pass_mode === "all" ? getRadioPasses : getPasses;
       const passData = await fetchPasses(
@@ -65,88 +128,63 @@ export async function POST(request: NextRequest) {
         group.latitude,
         group.longitude,
         group.altitude ?? 0,
-        1, // look ahead 1 day
+        LOOK_AHEAD_DAYS,
         sub.min_elevation
       );
-
-      for (const pass of passData.passes ?? []) {
-        const minutesUntilPass = (pass.startUTC - now) / 60;
-
-        // Only alert for passes starting within the notification window
-        if (minutesUntilPass > 0 && minutesUntilPass <= sub.notify_minutes_before) {
-          // Honor the per-weekday filter (empty/missing = every day), evaluated
-          // in the subscriber's local time zone.
-          const allowedDays: number[] = Array.isArray(sub.days_of_week) ? sub.days_of_week : [];
-          if (allowedDays.length > 0 && !allowedDays.includes(weekdayInTz(pass.startUTC, sub.timezone))) {
-            continue;
-          }
-
-          // Skip passes we've already sent an alert for
-          const { data: existing } = await supabase
-            .from("sent_alerts")
-            .select("id")
-            .eq("subscription_id", sub.id)
-            .eq("pass_start_utc", pass.startUTC)
-            .single();
-
-          if (existing) continue; // Already sent
-
-          candidates.push({
-            record: {
-              subscription_id: sub.id,
-              satellite_norad_id: sub.satellite_norad_id,
-              pass_start_utc: pass.startUTC,
-            },
-            payload: {
-              toEmail: sub.email,
-              toName: sub.email.split("@")[0],
-              satelliteName: `NORAD ${sub.satellite_norad_id}`,
-              locationName: group.location_name ?? group.name,
-              pass,
-            },
-          });
-        }
-      }
-    } catch {
-      // Skip failed satellites, continue processing others
+      passes = passData.passes ?? [];
+    } catch (e) {
+      // N2YO failure — leave the day unclaimed so a later cron run retries.
+      failed++;
+      console.error("[alerts] pass fetch failed:", e);
+      continue;
     }
-  }
 
-  // Dedupe so the same subscription/pass isn't emailed twice in one run.
-  const seen = new Set<string>();
-  const deduped = candidates.filter((c) => {
-    const key = `${c.record.subscription_id}-${c.record.pass_start_utc}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+    // Atomically claim the day before sending. The unique constraint means a
+    // concurrent run that already claimed this marker makes our insert fail,
+    // guaranteeing at most one digest is sent per local day.
+    const { error: claimErr } = await supabase.from("sent_alerts").insert({
+      subscription_id: sub.id,
+      satellite_norad_id: sub.satellite_norad_id,
+      pass_start_utc: marker,
+    });
+    if (claimErr) {
+      // 23505 = another run beat us to it; anything else is logged.
+      if (claimErr.code !== "23505") console.error("[alerts] claim failed:", claimErr);
+      skipped++;
+      continue;
+    }
 
-  if (deduped.length === 0) {
-    return NextResponse.json({ sent: 0, failed: 0, message: "No pending alerts" });
-  }
+    // Day is claimed. No passes => nothing to send (an empty digest is just noise).
+    if (passes.length === 0) {
+      skipped++;
+      continue;
+    }
 
-  let sent = 0;
-  let failed = 0;
-  for (const c of deduped) {
     try {
-      const result = await sendPassAlert(c.payload);
+      const result = await sendPassDigest({
+        toEmail: sub.email,
+        satelliteName: `NORAD ${sub.satellite_norad_id}`,
+        locationName: group.location_name ?? group.name,
+        groupName: group.name,
+        passes,
+        rangeLabel: "next 24 hours",
+      });
       if (!isSendOk(result)) {
+        // Release the claim so a later run the same day can retry the send.
+        await supabase.from("sent_alerts").delete().eq("subscription_id", sub.id).eq("pass_start_utc", marker);
         failed++;
-        console.error("[alerts] send rejected by API:", result.error);
+        console.error("[alerts] digest rejected by API:", (result as { error: unknown }).error);
         continue;
       }
-      // Record the alert as sent only after delivery is confirmed, so a failed
-      // send (e.g. Resend sandbox 403) is retried on the next cron run instead
-      // of being permanently marked as sent.
-      await supabase.from("sent_alerts").insert(c.record);
       sent++;
     } catch (e) {
+      await supabase.from("sent_alerts").delete().eq("subscription_id", sub.id).eq("pass_start_utc", marker);
       failed++;
-      console.error("[alerts] send threw:", e);
+      console.error("[alerts] digest send threw:", e);
     }
   }
 
-  return NextResponse.json({ sent, failed, total: deduped.length });
+  return NextResponse.json({ sent, failed, skipped, total: subs.length });
 }
 
 // GET for health / status check

@@ -99,6 +99,90 @@ export async function sendPassAlert(payload: AlertPayload) {
   });
 }
 
+export interface PassDigestPayload {
+  toEmail: string;
+  satelliteName: string;
+  locationName: string;
+  groupName?: string;
+  passes: Pass[];
+  // Human-readable description of the look-ahead window, e.g. "next 3 days".
+  rangeLabel: string;
+}
+
+// Sends a digest email listing all upcoming passes for one satellite — the same
+// list the user sees after clicking "Fetch Passes", already filtered by the
+// alert's min-elevation and pass-type settings.
+export async function sendPassDigest(payload: PassDigestPayload) {
+  const fmt = (epoch: number) =>
+    new Date(epoch * 1000).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
+
+  const rows = payload.passes
+    .map(
+      (p) => `
+        <tr>
+          <td style="padding:10px 8px;border-bottom:1px solid #1e293b;color:#e2e8f0;font-size:13px;">${fmt(p.startUTC)}</td>
+          <td style="padding:10px 8px;border-bottom:1px solid #1e293b;color:#f1f5f9;font-size:13px;font-weight:600;text-align:right;">${p.maxEl.toFixed(0)}°</td>
+          <td style="padding:10px 8px;border-bottom:1px solid #1e293b;color:#94a3b8;font-size:13px;text-align:right;">${p.duration != null ? `${Math.round(p.duration / 60)} min` : "—"}</td>
+          <td style="padding:10px 8px;border-bottom:1px solid #1e293b;color:#94a3b8;font-size:13px;text-align:right;">${p.startAzCompass} → ${p.endAzCompass}</td>
+        </tr>`
+    )
+    .join("");
+
+  const subject = payload.groupName
+    ? `[${payload.groupName}] ${payload.satelliteName} — ${payload.passes.length} upcoming pass${payload.passes.length === 1 ? "" : "es"}`
+    : `${payload.satelliteName} — ${payload.passes.length} upcoming pass${payload.passes.length === 1 ? "" : "es"}`;
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: -apple-system, sans-serif; background: #08080f; color: #e2e8f0; margin: 0; padding: 20px; }
+        .card { background: #0f0f1e; border: 1px solid #1e3a5f; border-radius: 12px; padding: 28px; max-width: 560px; margin: 0 auto; }
+        .badge { display: inline-block; padding: 4px 10px; border-radius: 20px; background: #1a3a6a; color: #60a5fa; font-size: 12px; font-weight: 600; margin-bottom: 16px; }
+        h1 { font-size: 22px; font-weight: 700; color: #f1f5f9; margin: 0 0 4px; }
+        .subtitle { color: #64748b; font-size: 14px; margin-bottom: 20px; }
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: left; font-size: 11px; color: #475569; text-transform: uppercase; letter-spacing: 0.5px; padding: 0 8px 8px; border-bottom: 1px solid #1e293b; }
+        th.r { text-align: right; }
+        .footer { margin-top: 24px; text-align: center; font-size: 12px; color: #475569; }
+        a { color: #60a5fa; text-decoration: none; }
+      </style>
+    </head>
+    <body>
+      <div class="card">
+        <div class="badge">PASS DIGEST</div>
+        <h1>${payload.satelliteName}</h1>
+        <p class="subtitle">
+          ${payload.locationName}${payload.groupName ? ` · ${payload.groupName}` : ""} · ${payload.rangeLabel}
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>Start (AOS)</th>
+              <th class="r">Max El</th>
+              <th class="r">Duration</th>
+              <th class="r">Direction</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+        <div class="footer">
+          <p>You're receiving this because you set an alert on <a href="#">SatTrack</a>.</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  return resend.emails.send({
+    from: FROM_EMAIL,
+    to: [payload.toEmail],
+    subject,
+    html,
+  });
+}
+
 export interface GroupMessagePayload {
   toEmail: string;
   groupName: string;

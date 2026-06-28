@@ -36,7 +36,8 @@ export interface AlertSubscription {
   group_id: string;
   min_elevation: number;
   pass_mode: "visible" | "all";
-  notify_minutes_before: number;
+  /** @deprecated No longer used — alerts now send a daily 13:00 digest. Column remains in DB. */
+  notify_minutes_before?: number;
   // Weekdays the alert may fire on, as JS getDay() indices (0=Sun … 6=Sat).
   // Empty array = every day. Evaluated in `timezone` (the observer's local zone).
   days_of_week: number[];
