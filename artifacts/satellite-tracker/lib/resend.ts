@@ -109,6 +109,14 @@ export interface PassDigestPayload {
   rangeLabel: string;
 }
 
+// Compact sky-condition cell from cloud cover percent (Open-Meteo): clear <25%,
+// partly 25–60%, overcast >60%. "—" when outside the forecast horizon.
+function skyCell(cloud?: number): string {
+  if (cloud == null) return "—";
+  const icon = cloud < 25 ? "☀️" : cloud <= 60 ? "⛅" : "☁️";
+  return `${icon} ${Math.round(cloud)}%`;
+}
+
 // Sends a digest email listing all upcoming passes for one satellite — the same
 // list the user sees after clicking "Fetch Passes", already filtered by the
 // alert's min-elevation and pass-type settings.
@@ -124,6 +132,7 @@ export async function sendPassDigest(payload: PassDigestPayload) {
           <td style="padding:10px 8px;border-bottom:1px solid #1e293b;color:#f1f5f9;font-size:13px;font-weight:600;text-align:right;">${p.maxEl.toFixed(0)}°</td>
           <td style="padding:10px 8px;border-bottom:1px solid #1e293b;color:#94a3b8;font-size:13px;text-align:right;">${p.duration != null ? `${Math.round(p.duration / 60)} min` : "—"}</td>
           <td style="padding:10px 8px;border-bottom:1px solid #1e293b;color:#94a3b8;font-size:13px;text-align:right;">${p.startAzCompass} → ${p.endAzCompass}</td>
+          <td style="padding:10px 8px;border-bottom:1px solid #1e293b;color:#94a3b8;font-size:13px;text-align:right;white-space:nowrap;">${skyCell(p.cloudCover)}</td>
         </tr>`
     )
     .join("");
@@ -163,6 +172,7 @@ export async function sendPassDigest(payload: PassDigestPayload) {
               <th class="r">Max El</th>
               <th class="r">Duration</th>
               <th class="r">Direction</th>
+              <th class="r">Sky</th>
             </tr>
           </thead>
           <tbody>${rows}</tbody>

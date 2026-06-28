@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getPasses, getRadioPasses } from "@/lib/n2yo";
+import { enrichPassesWithWeather } from "@/lib/weather";
 import { sendPassDigest, isSendOk } from "@/lib/resend";
 
 export async function GET() {
@@ -81,7 +82,8 @@ export async function POST(request: NextRequest) {
     try {
       const fetchPasses = mode === "all" ? getRadioPasses : getPasses;
       const passData = await fetchPasses(satellite_norad_id, group.latitude, group.longitude, group.altitude ?? 0, lookAhead, min_elevation);
-      const passes = passData.passes ?? [];
+      // Best-effort cloud-cover enrichment so the confirmation digest shows sky conditions.
+      const passes = await enrichPassesWithWeather(passData.passes ?? [], group.latitude, group.longitude, lookAhead);
       if (passes.length > 0) {
         const result = await sendPassDigest({
           toEmail: email,

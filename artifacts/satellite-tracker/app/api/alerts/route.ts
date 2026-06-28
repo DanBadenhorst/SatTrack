@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getPasses, getRadioPasses } from "@/lib/n2yo";
+import { enrichPassesWithWeather } from "@/lib/weather";
 import { sendPassDigest, isSendOk } from "@/lib/resend";
 
 // This route is called by a cron job (or manually) to send the daily pass digest.
@@ -136,7 +137,8 @@ export async function POST(request: NextRequest) {
         lookAhead,
         sub.min_elevation
       );
-      passes = passData.passes ?? [];
+      // Best-effort cloud-cover enrichment so the digest shows sky conditions.
+      passes = await enrichPassesWithWeather(passData.passes ?? [], group.latitude, group.longitude, lookAhead);
     } catch (e) {
       // N2YO failure — leave the day unclaimed so a later cron run retries.
       failed++;

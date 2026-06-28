@@ -46,3 +46,22 @@ export function cloudCoverAt(map: Map<number, number>, utcSeconds: number): numb
   const hourEpoch = Math.floor(utcSeconds / 3600) * 3600;
   return map.get(hourEpoch);
 }
+
+// Attaches `cloudCover` (% at the pass start) to each pass for the given
+// location. Best-effort: on any weather failure the passes are returned
+// unchanged so callers never break on weather.
+export async function enrichPassesWithWeather<T extends { startUTC: number }>(
+  passes: T[],
+  lat: number,
+  lng: number,
+  days: number = 3
+): Promise<(T & { cloudCover?: number })[]> {
+  let map: Map<number, number>;
+  try {
+    map = await getCloudCoverMap(lat, lng, days);
+  } catch (err) {
+    console.error("[weather] cloud cover fetch failed:", err);
+    return passes;
+  }
+  return passes.map((p) => ({ ...p, cloudCover: cloudCoverAt(map, p.startUTC) }));
+}
