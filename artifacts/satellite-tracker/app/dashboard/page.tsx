@@ -1,7 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Satellite, Users, Bell } from "lucide-react";
 import GroupFeed from "./GroupFeed";
 
 export default async function DashboardPage() {
@@ -36,34 +35,6 @@ export default async function DashboardPage() {
 
   const satCount = satellites?.length ?? 0;
   const alertCount = alerts?.length ?? 0;
-  const groupCount = groups.length;
-
-  const stats = [
-    {
-      label: "Groups",
-      value: groupCount,
-      icon: <Users className="w-5 h-5" />,
-      href: "/groups",
-      color: "text-green-400",
-      bg: "bg-green-900/20 border-green-800",
-    },
-    {
-      label: "Tracked Satellites",
-      value: satCount,
-      icon: <Satellite className="w-5 h-5" />,
-      href: "/satellites",
-      color: "text-purple-400",
-      bg: "bg-purple-900/20 border-purple-800",
-    },
-    {
-      label: "Active Alerts",
-      value: alertCount,
-      icon: <Bell className="w-5 h-5" />,
-      href: "/passes",
-      color: "text-orange-400",
-      bg: "bg-orange-900/20 border-orange-800",
-    },
-  ];
 
   const checklist = [
     { done: groupWithLocation != null, label: "Add or join a group with tracking location", href: "/groups", page: "Groups" },
@@ -85,14 +56,9 @@ export default async function DashboardPage() {
         </p>
       </div>
 
-      {/* Stats + setup checklist */}
-      <div
-        className={`grid gap-4 mb-8 items-stretch ${
-          showChecklist ? "grid-cols-4" : "grid-cols-3"
-        }`}
-      >
-        {/* Setup checklist — only while there's something outstanding */}
-        {showChecklist && (
+      {/* Setup checklist — only while there's something outstanding */}
+      {showChecklist && (
+        <div className="mb-8">
           <div className="rounded-xl bg-slate-900/60 border border-slate-800 p-5">
             <h2 className="font-semibold text-white mb-4">Setup checklist</h2>
             <ul className="space-y-3">
@@ -124,20 +90,8 @@ export default async function DashboardPage() {
               ))}
             </ul>
           </div>
-        )}
-
-        {stats.map((s) => (
-          <Link
-            key={s.label}
-            href={s.href}
-            className={`rounded-xl border p-5 ${s.bg} hover:brightness-110 transition-all`}
-          >
-            <div className={`${s.color} mb-3`}>{s.icon}</div>
-            <div className="text-2xl font-bold text-white">{s.value}</div>
-            <div className="text-xs text-slate-400 mt-0.5">{s.label}</div>
-          </Link>
-        ))}
-      </div>
+        </div>
+      )}
 
       {/* Group message feed */}
       <GroupFeed
