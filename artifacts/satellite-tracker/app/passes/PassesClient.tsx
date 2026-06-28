@@ -86,7 +86,7 @@ export default function PassesClient({
     initialSat ? new Set([initialSat.id]) : new Set(satellites.map((s) => s.id))
   );
   const [days, setDays] = useState(3);
-  const [minEl, setMinEl] = useState(20);
+  const [minEl, setMinEl] = useState(30);
   const [mode, setMode] = useState<PassMode>("visible");
   const [results, setResults] = useState<PassResult[]>([]);
   const [loading, setLoading] = useState(false);
