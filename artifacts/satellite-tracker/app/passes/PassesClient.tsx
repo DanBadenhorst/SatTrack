@@ -98,6 +98,7 @@ export default function PassesClient({
   const [alertModalSat, setAlertModalSat] = useState<TrackedSatellite | null>(null);
   const [aMinEl, setAMinEl] = useState(10);
   const [aMode, setAMode] = useState<PassMode>("visible");
+  const [aLookAhead, setALookAhead] = useState(3);
   const [aDays, setADays] = useState<Set<number>>(new Set([0, 1, 2, 3, 4, 5, 6]));
   const [savingAlert, setSavingAlert] = useState(false);
   const [alertError, setAlertError] = useState<string | null>(null);
@@ -150,6 +151,7 @@ export default function PassesClient({
   function openAlertModal(sat: TrackedSatellite) {
     setAMinEl(minEl);
     setAMode(mode);
+    setALookAhead(days);
     setADays(new Set([0, 1, 2, 3, 4, 5, 6]));
     setAlertError(null);
     setAlertModalSat(sat);
@@ -184,7 +186,7 @@ export default function PassesClient({
         days_of_week: daysArr,
         timezone: tz,
         email: userEmail,
-        days, // current page look-ahead, so the email matches what's on screen
+        look_ahead_days: aLookAhead, // per-alert look-ahead for both the confirmation and daily digest
       }),
     });
     setSavingAlert(false);
@@ -498,6 +500,20 @@ export default function PassesClient({
             </div>
 
             <div className="p-5 space-y-5">
+              {/* Look-ahead */}
+              <div>
+                <label className="block text-xs text-slate-400 uppercase mb-2">Look-ahead</label>
+                <div className="flex gap-2">
+                  {[1, 2, 3, 5, 7].map((d) => (
+                    <button key={d} onClick={() => setALookAhead(d)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${aLookAhead === d ? "bg-space-700 text-space-200" : "bg-slate-800 text-slate-400 hover:text-slate-200"}`}>
+                      {d}d
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-1.5 text-xs text-slate-500">Each digest lists passes for the next {aLookAhead} day{aLookAhead === 1 ? "" : "s"}.</p>
+              </div>
+
               {/* Min elevation */}
               <div>
                 <label className="block text-xs text-slate-400 uppercase mb-2">Min elevation: {aMinEl}°</label>

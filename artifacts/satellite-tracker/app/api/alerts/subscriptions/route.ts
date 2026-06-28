@@ -33,9 +33,9 @@ export async function POST(request: NextRequest) {
     timezone = null,
     email,
     satellite_name,
-    // Look-ahead (days) for the immediate confirmation email, mirroring the
-    // page's current filter so it matches what the user just saw on screen.
-    days = 3,
+    // Per-alert look-ahead (days): how far ahead the confirmation email AND the
+    // daily digest list passes.
+    look_ahead_days = 3,
   } = body;
 
   if (!satellite_norad_id || !group_id || !email) {
@@ -48,11 +48,22 @@ export async function POST(request: NextRequest) {
     ? [...new Set(days_of_week.filter((d: unknown) => Number.isInteger(d) && (d as number) >= 0 && (d as number) <= 6))].sort((a, b) => (a as number) - (b as number))
     : [];
 
-  const { data, error } = await supabase
+  const lookAhead = Number.isInteger(look_ahead_days) && look_ahead_days > 0 && look_ahead_days <= 10 ? look_ahead_days : 3;
+  const baseRow = { user_id: user.id, satellite_norad_id, group_id, min_elevation, pass_mode: mode, days_of_week: dayList, timezone, email };
+  const select = "*, groups(name, location_name, latitude, longitude, altitude)";
+
+  let { data, error } = await supabase
     .from("alert_subscriptions")
-    .insert({ user_id: user.id, satellite_norad_id, group_id, min_elevation, pass_mode: mode, days_of_week: dayList, timezone, email })
-    .select("*, groups(name, location_name, latitude, longitude, altitude)")
+    .insert({ ...baseRow, look_ahead_days: lookAhead })
+    .select(select)
     .single();
+
+  // Graceful fallback: if the look_ahead_days column hasn't been added to the
+  // live DB yet, retry without it so alert creation still works.
+  if (error && (error.code === "PGRST204" || /look_ahead_days/.test(error.message))) {
+    console.warn("[alerts] look_ahead_days column missing — run the migration; inserting without it.");
+    ({ data, error } = await supabase.from("alert_subscriptions").insert(baseRow).select(select).single());
+  }
 
   if (error) {
     if (error.code === "23505") {
@@ -68,7 +79,6 @@ export async function POST(request: NextRequest) {
     | null;
   if (group && group.latitude != null && group.longitude != null) {
     try {
-      const lookAhead = Number.isInteger(days) && days > 0 && days <= 10 ? days : 3;
       const fetchPasses = mode === "all" ? getRadioPasses : getPasses;
       const passData = await fetchPasses(satellite_norad_id, group.latitude, group.longitude, group.altitude ?? 0, lookAhead, min_elevation);
       const passes = passData.passes ?? [];

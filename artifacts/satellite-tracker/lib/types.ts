@@ -42,6 +42,8 @@ export interface AlertSubscription {
   // Empty array = every day. Evaluated in `timezone` (the observer's local zone).
   days_of_week: number[];
   timezone: string | null;
+  /** How many days ahead each digest lists passes (1–10). Defaults to 1 if unset. */
+  look_ahead_days?: number;
   email: string;
   active: boolean;
   created_at: string;

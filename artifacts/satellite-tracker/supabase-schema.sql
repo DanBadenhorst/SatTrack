@@ -56,6 +56,8 @@ CREATE TABLE IF NOT EXISTS alert_subscriptions (
   -- Empty array = every day. Evaluated in `timezone` (observer's local zone).
   days_of_week SMALLINT[] NOT NULL DEFAULT '{}',
   timezone TEXT,
+  -- How many days ahead each digest lists passes (1–10).
+  look_ahead_days SMALLINT NOT NULL DEFAULT 1,
   email TEXT NOT NULL,
   active BOOLEAN NOT NULL DEFAULT true,
   created_at TIMESTAMPTZ DEFAULT now() NOT NULL,

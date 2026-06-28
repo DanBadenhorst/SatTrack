@@ -120,6 +120,11 @@ export async function POST(request: NextRequest) {
       continue;
     }
 
+    const lookAhead =
+      Number.isInteger(sub.look_ahead_days) && sub.look_ahead_days > 0 && sub.look_ahead_days <= 10
+        ? sub.look_ahead_days
+        : LOOK_AHEAD_DAYS;
+
     let passes;
     try {
       const fetchPasses = sub.pass_mode === "all" ? getRadioPasses : getPasses;
@@ -128,7 +133,7 @@ export async function POST(request: NextRequest) {
         group.latitude,
         group.longitude,
         group.altitude ?? 0,
-        LOOK_AHEAD_DAYS,
+        lookAhead,
         sub.min_elevation
       );
       passes = passData.passes ?? [];
@@ -167,7 +172,7 @@ export async function POST(request: NextRequest) {
         locationName: group.location_name ?? group.name,
         groupName: group.name,
         passes,
-        rangeLabel: "next 24 hours",
+        rangeLabel: `next ${lookAhead} day${lookAhead === 1 ? "" : "s"}`,
       });
       if (!isSendOk(result)) {
         // Release the claim so a later run the same day can retry the send.
