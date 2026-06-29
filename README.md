@@ -25,15 +25,15 @@ Key features:
 ## Live URL
 
 <!-- Replace with your deployed Vercel URL -->
-https://sattrack.vercel.app
+[https://sattrack.vercel.app](https://sat-track-satellite-tracker.vercel.app/)
 
 ## Test Account
 
 Use the following credentials to sign in and explore the app:
 
 <!-- Fill in a working demo account before sharing -->
-- **Email:** `your-test-email@example.com`
-- **Password:** `your-test-password`
+- **Email:** `dan.badenhorst@dhc-sa.com`
+- **Password:** `Included in submission email to Andrea for security`
 
 > Or click **Get started free** on the landing page to create your own account.
 
@@ -48,6 +48,8 @@ Use the following credentials to sign in and explore the app:
 ## Running Locally
 
 This is a pnpm monorepo; the app lives in `artifacts/satellite-tracker`.
+
+**Prerequisites:** Node.js 18.18+ and [pnpm](https://pnpm.io/) (`npm install -g pnpm`).
 
 1. **Install dependencies** (from the repo root):
 
@@ -66,18 +68,20 @@ This is a pnpm monorepo; the app lives in `artifacts/satellite-tracker`.
    SESSION_SECRET=<any long random string>
    # Optional:
    # RESEND_FROM_EMAIL=SatTrack <alerts@yourdomain.com>   # after verifying a domain in Resend
-   # APP_URL=http://localhost:23059                        # canonical links in emails
+   # APP_URL=http://localhost:3000                         # canonical links in emails
    ```
 
 3. **Apply the database schema.** Run the SQL in `artifacts/satellite-tracker/supabase-schema.sql` against your Supabase project (via the Supabase dashboard SQL editor).
 
-4. **Start the dev server:**
+4. **Start the dev server.** The `dev` script reads the port from the `PORT` environment variable, so provide one on the command line (from the repo root):
 
    ```bash
-   pnpm --filter @workspace/satellite-tracker run dev
+   PORT=3000 pnpm --filter @workspace/satellite-tracker run dev
    ```
 
-   The app runs at `http://localhost:23059`.
+   The app runs at `http://localhost:3000`.
+
+   > On Windows (PowerShell): `$env:PORT=3000; pnpm --filter @workspace/satellite-tracker run dev`
 
 See `artifacts/satellite-tracker/DEPLOYMENT.md` for full production (Vercel) setup.
 
