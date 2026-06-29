@@ -24,8 +24,7 @@ Key features:
 
 ## Live URL
 
-<!-- Replace with your deployed Vercel URL -->
-[https://sattrack.vercel.app](https://sat-track-satellite-tracker.vercel.app/)
+[https://sat-track-satellite-tracker.vercel.app/](https://sat-track-satellite-tracker.vercel.app/)
 
 ## Test Account
 
