@@ -37,7 +37,7 @@ export default async function HomePage() {
           <span>Live satellite tracking for radio operators &amp; spotters</span>
         </div>
 
-        <h1 className="text-5xl md:text-7xl font-bold tracking-tight mb-6 bg-gradient-to-b from-white to-slate-400 bg-clip-text text-transparent">
+        <h1 className="text-5xl md:text-7xl font-bold tracking-tight leading-[1.15] pb-2 mb-6 bg-gradient-to-b from-white to-slate-400 bg-clip-text text-transparent">
           Never miss a pass again.
         </h1>
 
