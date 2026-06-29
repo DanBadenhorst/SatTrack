@@ -95,6 +95,7 @@ See `artifacts/satellite-tracker/DEPLOYMENT.md` for full production (Vercel) set
 - **Pass predictions are fetched on demand**, not on page load, to stay within the N2YO API transaction quota. Pass data is cached briefly per location and reused across users observing from the same site.
 - **Group chat for coordination is sufficient for now.** It is assumed that a group chat mechanism — which shows the satellites tracked for the group at a glance and allows chat to coordinate group activity — is sufficient for coordination at this time.
 - **Alerts are sent via email per user.** Although tracking of satellites for locations is done at the group level, users have the flexibility to configure their own alerts within the confines of the group's monitored satellites.
+- **Group chat email notifications are opt-in.** Users can switch on email notifications for chat messages posted by other members of their groups; when enabled, a new group message also notifies subscribed members by email (with a deep link back to the chat).
 - **Email delivery requires a verified Resend domain.** Until a domain is verified, Resend's sandbox sender only delivers to the account owner's own email; set `RESEND_FROM_EMAIL` (with a verified domain) to reach external recipients.
 - **The Supabase schema is managed manually** — neither Vercel nor the app runs migrations automatically.
 - **Secrets live only in environment variables** (Replit / Vercel / Supabase), never in the repository.
