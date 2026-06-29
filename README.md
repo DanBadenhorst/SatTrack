@@ -64,7 +64,6 @@ This is a pnpm monorepo; the app lives in `artifacts/satellite-tracker`.
    SUPABASE_SERVICE_ROLE_KEY=<from Supabase → Project Settings → API>
    N2YO_API_KEY=<your N2YO key>
    RESEND_API_KEY=<your Resend key>
-   SESSION_SECRET=<any long random string>
    # Optional:
    # RESEND_FROM_EMAIL=SatTrack <alerts@yourdomain.com>   # after verifying a domain in Resend
    # APP_URL=http://localhost:3000                         # canonical links in emails
