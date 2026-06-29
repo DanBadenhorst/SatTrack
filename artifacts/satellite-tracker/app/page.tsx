@@ -42,12 +42,12 @@ export default async function HomePage() {
         </h1>
 
         <p className="text-lg md:text-xl text-slate-400 max-w-2xl mx-auto mb-10 leading-relaxed">
-          SatTrack tells you exactly when satellites are overhead, groups your team around the best passes, and alerts you before the window opens.
+          SatTrack tells you exactly when satellites are overhead, groups your team around the best passes, and emails you a daily digest of upcoming passes.
         </p>
 
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <Link
-            href="/auth/login"
+            href="/auth/login?mode=signup"
             className="px-8 py-3.5 rounded-xl bg-space-500 hover:bg-space-600 text-white font-semibold transition-colors text-lg shadow-lg shadow-space-900/50"
           >
             Get started free
@@ -68,32 +68,32 @@ export default async function HomePage() {
             {
               icon: <Satellite className="w-6 h-6" />,
               title: "Live Pass Predictions",
-              desc: "Real-time pass predictions powered by N2YO for any satellite from your group's observing site. See azimuth, elevation, and visibility windows.",
+              desc: "Pass predictions powered by N2YO for any satellite from your observing site — azimuth, elevation, and timing — plus a live map of the satellite's current position.",
             },
             {
               icon: <Users className="w-6 h-6" />,
               title: "Group Coordination",
-              desc: "Spin up a group with one shared observing location. Everyone tracks the same satellites and sees the same pass window — no more missed contacts.",
+              desc: "Create or join a group around one shared observing location. Discover nearby groups on a map and rally your team around the same pass windows.",
             },
             {
               icon: <Bell className="w-6 h-6" />,
-              title: "Smart Alerts",
-              desc: "Get email notifications before a pass starts. Alerts are batched and de-duplicated so you never get spammed when a satellite is popular.",
+              title: "Daily Pass Digest",
+              desc: "One email a day at 1pm your time listing the upcoming passes that matter. Choose the days, look-ahead window, minimum elevation, and pass type — one tidy digest, never spam.",
             },
             {
               icon: <MapPin className="w-6 h-6" />,
               title: "Shared Observing Site",
-              desc: "Each group has one observing location set by an admin, so every member coordinates around the exact same horizon and pass times.",
+              desc: "Add observing sites by address search or GPS and mark a default. Each group has one location, so every member coordinates around the exact same horizon.",
             },
             {
               icon: <Radio className="w-6 h-6" />,
               title: "Radio Operator Focus",
-              desc: "Built for amateur radio operators. Minimum elevation thresholds, Doppler shift awareness, and contact window calculations.",
+              desc: "Built for amateur radio operators. Filter by minimum elevation and radio vs visual passes, and see each pass's peak elevation and duration at a glance.",
             },
             {
               icon: <Zap className="w-6 h-6" />,
-              title: "Cached & Fast",
-              desc: "Pass data is intelligently cached to stay within API limits. Results are shared across users at the same location for speed.",
+              title: "Sky Conditions at a Glance",
+              desc: "Every pass shows a cloud-cover hint — clear, partly cloudy, or overcast — so you know whether you'll actually see it before you head outside.",
             },
           ].map((f, i) => (
             <div
@@ -118,7 +118,7 @@ export default async function HomePage() {
             Create your account in seconds. No credit card required.
           </p>
           <Link
-            href="/auth/login"
+            href="/auth/login?mode=signup"
             className="inline-block px-10 py-4 rounded-xl bg-space-500 hover:bg-space-600 text-white font-semibold text-lg transition-colors"
           >
             Create free account
