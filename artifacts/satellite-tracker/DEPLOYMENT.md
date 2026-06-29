@@ -50,13 +50,20 @@ Otherwise signup confirmation and the auth callback will fail in production.
 
 ## Scheduled alert digests (cron)
 
-`vercel.json` registers an **hourly** cron that calls `GET /api/alerts`. Vercel
-automatically attaches `Authorization: Bearer <CRON_SECRET>`, which the route verifies.
+`vercel.json` registers a **daily** cron that calls `GET /api/alerts` at **11:00 UTC**.
+Vercel automatically attaches `Authorization: Bearer <CRON_SECRET>`, which the route verifies.
 
-> **Plan note:** Vercel's **Hobby (free)** plan only runs cron **once per day**.
-> The alert design needs it **hourly** (so 1pm local can be matched across time
-> zones). Hourly scheduling requires the **Pro** plan. On Hobby, digests fire at
-> most once a day at a fixed UTC hour.
+> **Why 11:00 UTC:** all users are in South Africa (SAST = UTC+2, no daylight
+> saving), so 1pm local = 11:00 UTC. The route only sends a subscriber's digest
+> once their local clock is at/after 1pm, so this single daily run covers everyone.
+>
+> **Plan note:** a once-a-day cron runs on Vercel's **Hobby (free)** plan — no Pro
+> needed. (Pro is only required if you later add users in other time zones and need
+> the cron to run hourly to catch each zone's 1pm.)
+>
+> **Trade-off:** with one run per day, a transient send failure (e.g. N2YO/Resend
+> hiccup) means that subscriber misses that day's digest — there's no later retry
+> until tomorrow.
 
 ## Notes
 - Secrets live in Vercel + Supabase, never in the repo.
