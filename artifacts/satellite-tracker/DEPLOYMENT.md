@@ -23,7 +23,7 @@ Required:
 
 | Name | Value |
 | --- | --- |
-| `NEXT_PUBLIC_SUPABASE_URL` | `https://wieadxnlvnnrjpvzjlne.supabase.co` |
+| `NEXT_PUBLIC_SUPABASE_URL` | `https://<your-project-ref>.supabase.co` |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | (from Supabase → Project Settings → API) |
 | `SUPABASE_SERVICE_ROLE_KEY` | (from Supabase → Project Settings → API) |
 | `N2YO_API_KEY` | (your N2YO key) |

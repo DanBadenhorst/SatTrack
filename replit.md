@@ -82,7 +82,7 @@ _Populate as you build._
 
 - **Auth must be server-side.** Sign-in/sign-up go through `/api/auth/login` and `/api/auth/signup` route handlers, which set the Supabase session via `Set-Cookie` headers. The browser Supabase client's `document.cookie` writes do NOT persist through the Replit proxy/iframe, so client-side `signInWithPassword` silently fails to create a usable session.
 - **`/api` routing conflict.** The `api-server` artifact used to claim `/api`, hijacking all of satellite-tracker's Next.js `/api/*` routes (they 404'd from the Express server). It's been repathed to `/_api-server`. Never let another artifact claim `/api` while satellite-tracker is at `/`.
-- `NEXT_PUBLIC_SUPABASE_URL` secret includes `/rest/v1/` — the app strips this at runtime. Best to update the secret to just `https://wieadxnlvnnrjpvzjlne.supabase.co`.
+- `NEXT_PUBLIC_SUPABASE_URL` secret includes `/rest/v1/` — the app strips this at runtime. Best to update the secret to just `https://<your-project-ref>.supabase.co`.
 - Do not call `pnpm run dev` at the workspace root — run via the workflow or `pnpm --filter`.
 - Leaflet CSS must be imported in `globals.css`, not in the component, to avoid SSR flash.
 - Supabase Management API requires a PAT (personal access token), not the service role key — keep the PAT out of secrets/env, use it only for one-off admin scripts.
