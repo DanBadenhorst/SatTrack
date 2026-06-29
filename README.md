@@ -71,15 +71,15 @@ This is a pnpm monorepo; the app lives in `artifacts/satellite-tracker`.
 
 3. **Apply the database schema.** Run the SQL in `artifacts/satellite-tracker/supabase-schema.sql` against your Supabase project (via the Supabase dashboard SQL editor).
 
-4. **Start the dev server.** The `dev` script reads the port from the `PORT` environment variable, so provide one on the command line (from the repo root):
+4. **Start the dev server** (from the repo root). This command works the same on Windows, macOS, and Linux:
 
    ```bash
-   PORT=3000 pnpm --filter @workspace/satellite-tracker run dev
+   pnpm --filter @workspace/satellite-tracker run dev:local
    ```
 
    The app runs at `http://localhost:3000`.
 
-   > On Windows (PowerShell): `$env:PORT=3000; pnpm --filter @workspace/satellite-tracker run dev`
+   > `dev:local` uses a fixed port (3000) so no environment variable or shell-specific syntax is needed. To use a different port, edit the `dev:local` script in `artifacts/satellite-tracker/package.json`.
 
 See `artifacts/satellite-tracker/DEPLOYMENT.md` for full production (Vercel) setup.
 
