@@ -56,7 +56,19 @@ This is a pnpm monorepo; the app lives in `artifacts/satellite-tracker`.
    pnpm install
    ```
 
-2. **Configure environment variables.** Create `artifacts/satellite-tracker/.env.local` with:
+2. **Configure environment variables.** Copy the provided template to `.env.local`, then fill in your own keys:
+
+   ```bash
+   # macOS / Linux
+   cp artifacts/satellite-tracker/.env.example artifacts/satellite-tracker/.env.local
+   ```
+
+   ```powershell
+   # Windows (PowerShell)
+   copy artifacts\satellite-tracker\.env.example artifacts\satellite-tracker\.env.local
+   ```
+
+   Then open `artifacts/satellite-tracker/.env.local` and set each value:
 
    ```bash
    NEXT_PUBLIC_SUPABASE_URL=https://<your-project-ref>.supabase.co
@@ -68,6 +80,8 @@ This is a pnpm monorepo; the app lives in `artifacts/satellite-tracker`.
    # RESEND_FROM_EMAIL=SatTrack <alerts@yourdomain.com>   # after verifying a domain in Resend
    # APP_URL=http://localhost:3000                         # canonical links in emails
    ```
+
+   `.env.local` is gitignored, so your real keys are never committed.
 
 3. **Apply the database schema.** Run the SQL in `artifacts/satellite-tracker/supabase-schema.sql` against your Supabase project (via the Supabase dashboard SQL editor).
 
