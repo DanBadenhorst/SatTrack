@@ -90,5 +90,6 @@ See `artifacts/satellite-tracker/DEPLOYMENT.md` for full production (Vercel) set
 - **All users are in South Africa (SAST = UTC+2, no daylight saving).** The daily digest cron runs once a day at 11:00 UTC (= 1pm local), which keeps it on Vercel's free Hobby plan. Supporting other time zones would require an hourly cron (Vercel Pro).
 - **Pass predictions are fetched on demand**, not on page load, to stay within the N2YO API transaction quota. Pass data is cached briefly per location and reused across users observing from the same site.
 - **Email delivery requires a verified Resend domain.** Until a domain is verified, Resend's sandbox sender only delivers to the account owner's own email; set `RESEND_FROM_EMAIL` (with a verified domain) to reach external recipients.
+- **Group chat email notifications are opt-in.** Users can switch on email notifications for chat messages posted by other members of their groups; when enabled, a new group message also notifies subscribed members by email (with a deep link back to the chat).
 - **The Supabase schema is managed manually** — neither Vercel nor the app runs migrations automatically.
 - **Secrets live only in environment variables** (Replit / Vercel / Supabase), never in the repository.
